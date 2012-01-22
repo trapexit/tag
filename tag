@@ -20,6 +20,8 @@ IMPORTANTTAGS = ['date','album','albumartist','artist','title','tracknumber',
                  'remixer','discsubtitle','discnumber','originalartist',
                  'originalalbum','originaldate','totaltracks',
                  'totaldiscs','genre','media']
+UNIQUETAGS = ['remixer','originalartist','originalalbum','originaldate',
+              'tracknumber']
 
 def main():
     opts, args = getopt.getopt(sys.argv[1:],
@@ -372,6 +374,9 @@ def guesstags(filepath):
     files.remove(filename+ext)    
 
     tags = scrapetagsfrom([os.path.join(dirname,file) for file in files])
+    for tag in UNIQUETAGS:
+        if tag in tags:
+            del tags[tag]
     tags.update(scrapetagsfrom([filepath]))
     if not tags.has_key('tracknumber'):
         tn = re.search('(\d+)',filename)
