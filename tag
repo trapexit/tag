@@ -4,6 +4,7 @@
 import mutagen
 import string
 import os
+import stat
 import sys
 import re
 import getopt
@@ -141,7 +142,10 @@ def tagfiles(args,dirname,files):
                     print "^================^"
 
                 if args['dryrun'] == False:
-                    audio.save()                    
+                    s = os.stat(filepath)
+                    os.chmod(filepath, s.st_mode | stat.S_IWUSR)
+                    audio.save()
+                    os.chmod(filepath, s.st_mode)
     return
 
 def settags(audio,tags):
