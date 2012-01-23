@@ -29,13 +29,13 @@ def main():
                                ["help","print","dryrun",
                                 "clear","query",'warn',
                                 "guess","rename=","set=",
-                                "alter="])
+                                "alter=","move"])
 
     options = {'dryrun':False,'print':False,
                'clear':False,'query':False,
                'warn':False,'guess':False,
                'rename':False,'set':{},
-               'alter':{}}
+               'alter':{},'move':False}
     for o,a in opts:
         if o in ("-d","--dryrun"):
             options['dryrun'] = True
@@ -49,6 +49,8 @@ def main():
             options['warn'] = True
         elif o in ('-g','--guess'):
             options['guess'] = True
+        elif o in ('-m','--move'):
+            options['move'] = True
         elif o in ('-r','--rename'):
             if not os.path.exists(a) or not os.path.isdir(a):
                 print "\nError: rename base path "+a+" doesn't exist\n"
@@ -74,6 +76,7 @@ def main():
     for path in args:
         path = path.decode("utf-8")
         if os.path.isfile(path):
+            path = os.path.abspath(path)
             tagfiles(options,os.path.dirname(path),[os.path.basename(path)])
         elif os.path.isdir(path):
             os.path.walk(path,tagfiles,options)
@@ -88,6 +91,13 @@ def tagfiles(args,dirname,files):
                 tags = guesstags(filepath)
             else:
                 tags = parsetagsfrompath(filepath)
+                if tags:
+                    tags.update(totals(filepath))
+
+            if not tags:
+                print "ERROR: unable to derrive tags for " + filepath
+                continue
+                    
             if args['query']:
                 dtags = discogtags(tags)
                 if args['warn']:
@@ -101,16 +111,23 @@ def tagfiles(args,dirname,files):
                 print filepath
             if args['rename']:
                 newpath = createfilepathfromtags(args['rename'],tags,ext)
+                checkfilepathfromtags(newpath,tags)
                 if args['print']:
-                    print "Renamed: ",newpath
+                    print "Renamed:",newpath
                 if not args['dryrun']:
                     try:
                         os.makedirs(os.path.dirname(newpath))
                     except:
                         pass
                     finally:
-                        shutil.copy2(filepath,newpath)
-                        filepath = newpath
+                        if filepath != newpath:
+                            if os.access(newpath,os.F_OK):
+                                os.remove(newpath)
+                            if args['move']:
+                                shutil.move(filepath,newpath)
+                            else:
+                                shutil.copyfile(filepath,newpath)
+                            filepath = newpath
             audio = mutagen.File(filepath)
             if audio:
                 if args['clear']:
@@ -136,7 +153,7 @@ def settags(audio,tags):
     for key,value in tags.iteritems():
         audio[key] = value
 
-def padnumerictags(tags):        
+def padnumerictags(tags):
     if tags.has_key('tracknumber'):
         if tags.has_key('totaltracks'):
             tags['tracknumber'] = [padnumber(tags['tracknumber'][0],
@@ -163,21 +180,21 @@ def parsetagsfrompath(path):
     
     T = string.Template
     R = {}
-    R['a0'] = "(?P<char>[^/])"
-    R['a']  = "(?P<artist>[^/]+?)"
+    R['a0']  = "(?P<char>[^/])"
+    R['a']   = "(?P<artist>[^/]+?)"
     R['aa']  = "(?P<albumartist>[^/]+?)"    
-    R['oa'] = "(?P<originalartist>[^/]+?)"
-    R['b']  = "(?P<album>[^/]+?)"
-    R['ob'] = "(?P<originalalbum>[^/]+?)"
-    R['t']  = "(?P<title>[^/]+?)"
-    R['y']  = "(?P<date>\d\d\d\d)"
-    R['oy'] = "(?P<originaldate>\d\d\d\d)"
-    R['d']  = "(?P<discnumber>\d+)"
-    R['c']  = "(?P<category>[^/]+?)"
-    R['r']  = "(?P<release>[A-Z])"
-    R['n']  = "(?P<tracknumber>\d+)"
+    R['oa']  = "(?P<originalartist>[^/]+?)"
+    R['b']   = "(?P<album>[^/]+?)"
+    R['ob']  = "(?P<originalalbum>[^/]+?)"
+    R['t']   = "(?P<title>[^/]+?)"
+    R['y']   = "(?P<date>\d\d\d\d)"
+    R['oy']  = "(?P<originaldate>\d\d\d\d)"
+    R['d']   = "(?P<discnumber>\d+)"
+    R['c']   = "(?P<category>[^/]+?)"
+    R['r']   = "(?P<release>[A-Z])"
+    R['n']   = "(?P<tracknumber>\d+)"
     R['ds']  = "(?P<discsubtitle>[^/]+?)"
-    R['e']  = "(?P<ext>[^/]+?)"
+    R['e']   = "(?P<ext>\.[^\.]+?)"
     R['rm']  = "(?P<remixer>[^/]+?)"
     # Other tags? MEDIA,DISCTOTAL,TOTALDISCS,TRACKTOTAL,TOTALTRACKS,GENRE
     
@@ -191,22 +208,22 @@ def parsetagsfrompath(path):
         '/${a0}/${aa}/${c}/${b}/']
     
     FILENAMEPATTERNS = [
-        '${n}=${t}_\[${a}\]_\{${oa}\|${oy}\|${ob}\}\.${e}',
-        '${n}=${t}_\[${a}\]_\{${oa}\|${oy}\}\.${e}',
-        '${n}=${t}_\[${a}\]_\{${oa}\|${ob}\}\.${e}',
-        '${n}=${t}_\[${a}\]_\{${oa}\}\.${e}',
-        '${n}=${t}_\[${a}\]_\<${rm}\>\.${e}',        
-        '${n}=${t}_\[${a}\]\.${e}',
-        '${n}=${t}_\{${oa}\|${oy}\|${ob}\}\.${e}',
-        '${n}=${t}_\{${oa}\|${oy}\}\.${e}',
-        '${n}=${t}_\{${oa}\|${ob}\}\.${e}',
-        '${n}=${t}_\{${oa}\}\.${e}',
-        '${n}=${t}_\{${oa}\|${oy}|${ob}\}_\<${rm}\>\.${e}',
-        '${n}=${t}_\{${oa}\|${oy}\}_\<${rm}\>\.${e}',
-        '${n}=${t}_\{${oa}\|${ob}\}_\<${rm}\>\.${e}',
-        '${n}=${t}_\{${oa}\}_\<${rm}\>\.${e}',
-        '${n}=${t}_\<${rm}\>\.${e}',
-        '${n}=${t}\.${e}']
+        '${t}_\[${a}\]_\{${oa}\|${oy}\|${ob}\}${e}',
+        '${t}_\[${a}\]_\{${oa}\|${oy}\}${e}',
+        '${t}_\[${a}\]_\{${oa}\|${ob}\}${e}',
+        '${t}_\[${a}\]_\{${oa}\}${e}',
+        '${t}_\[${a}\]_\<${rm}\>${e}',        
+        '${t}_\[${a}\]${e}',
+        '${t}_\{${oa}\|${oy}\|${ob}\}${e}',
+        '${t}_\{${oa}\|${oy}\}${e}',
+        '${t}_\{${oa}\|${ob}\}${e}',
+        '${t}_\{${oa}\}${e}',
+        '${t}_\{${oa}\|${oy}|${ob}\}_\<${rm}\>${e}',
+        '${t}_\{${oa}\|${oy}\}_\<${rm}\>${e}',
+        '${t}_\{${oa}\|${ob}\}_\<${rm}\>${e}',
+        '${t}_\{${oa}\}_\<${rm}\>${e}',
+        '${t}_\<${rm}\>${e}',
+        '${t}${e}']
     
     TAGS = {}
     for pattern in PATTERNS:
@@ -215,29 +232,44 @@ def parsetagsfrompath(path):
         if m:
             TAGS.update(m.groupdict())
             break
-        
+
+    additional = None
     for pattern in FILENAMEPATTERNS:
-        reg = T(pattern).substitute(R)
+        reg = T('${n}='+pattern).substitute(R)
         m = re.match('^'+reg+'$',FILENAME)
         if m:
-            TAGS.update(m.groupdict())
+            additional = m.groupdict()
             break
+
+    if not additional:
+        for pattern in FILENAMEPATTERNS:
+            reg = T(pattern).substitute(R)
+            m = re.match('^'+reg+'$',FILENAME)
+            if m:
+                additional = m.groupdict()
+                break
+
+    TAGS.update(additional)        
 
     if TAGS:
         TAGS.setdefault('artist',TAGS.get('albumartist',''))
-        
-        TAGS['totaltracks'] = unicode(totaltracks(FILEPATH))
-        if TAGS.has_key("discnumber"):
-            TAGS['totaldiscs'] = unicode(totaldiscs(FILEPATH))
         
         if 'char' in TAGS: del TAGS['char']
         if 'release' in TAGS: del TAGS['release']
         if 'ext' in TAGS: del TAGS['ext']
 
-    for key,value in TAGS.iteritems():
-        TAGS[key] = [value.replace('_',' ')]
+        for key,value in TAGS.iteritems():
+            TAGS[key] = [value.replace('_',' ')]
 
     return TAGS
+
+def totals(filepath):
+    tags = {}
+    tags['totaltracks'] = [unicode(totaltracks(filepath))]
+    count = totaldiscs(filepath)
+    if count:
+        tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
+    return tags
 
 def totaltracks(filepath):
     dirname = os.path.dirname(filepath)
@@ -261,11 +293,11 @@ def totaldiscs(filepath):
     dirname = os.path.dirname(filepath)
     dirname = os.path.dirname(dirname)
     files = os.listdir(dirname)
-    max = 1
+    max = 0
     for file in files:
         match = re.match("(Part|Side|Disc)_(\d+).*",file)
         if match:
-            match = int(match.groups()[0])
+            match = int(match.groups()[1])
             if match > max:
                 max = match
     return max
@@ -452,7 +484,7 @@ def createfilepathfromtags(base,tags,ext):
             print "Error with renaming: necessary tag " + KEY.upper() + " not present"
             return
 
-    char   = tags['albumartist'][0][0]
+    char  = tags['albumartist'][0][0]
     albumartist = tags['albumartist'][0]
     if tags.has_key('category'):
         category = tags['category'][0]
@@ -469,6 +501,11 @@ def createfilepathfromtags(base,tags,ext):
     if tags.has_key('originaldate') and not tags.has_key('originalartist') and not tags.has_key('originalalbum'):
         album += u'_{'+tags['originaldate'][0]+u'}'
 
+    if tags.has_key('discnumber'):
+        album += u'/Part_'+tags['discnumber'][0]
+        if tags.has_key('discsubtitle'):
+            album += u'_-_'+tags['discsubtitle'][0]
+        
     if tags.has_key('tracknumber'):
         title = tags['tracknumber'][0].split('/')[0]+u"="+tags['title'][0]
     else:
@@ -492,6 +529,17 @@ def createfilepathfromtags(base,tags,ext):
     path = string.replace(path,' ','_')
     
     return path
+
+def checkfilepathfromtags(filepath,tags):
+    newtags = parsetagsfrompath(filepath)
+    for tag in newtags:
+        if not tags.has_key(tag):
+            print newtags, "\n", tags
+            sys.exit(0)
+        elif newtags[tag] != tags[tag]:
+            print filepath
+            print newtags,"\n", tags
+            sys.exit(0)
 
 def findnextrelease(blah):
     return u"A"
@@ -565,6 +613,7 @@ def printwarnings(tags,dtags):
 def usage():
     print "usage: %(name)s [opts] [filepath] ..." % {'name':sys.argv[0]}
     print
+    print " -h | --help              : print help"
     print " -d | --dryrun            : process but don't commit"
     print " -p | --print             : print info"
     print " -c | --clear             : clear tags before writing new ones"
@@ -572,8 +621,16 @@ def usage():
     print " -w | --warn              : warn of inconsistancies"
     print " -g | --guess             : guess tags not in expected path format"
     print " -r | --rename=<path>     : rename to standard path"
-    print " -s | --set=\"KEY=VALUE\" : sets/overwrites tag" 
-    print " -h | --help              : print help"
+    print " -m | --move              : when renaming delete the original file"
+    print " -s | --set=\"KEY=VALUE\"   : sets/overwrites tag"
+    print " -a | --alter=\"KEY=<mod>\" : alter tags"
+    print "  <mod> = \"t|c|l|u|s|r:old:new\""
+    print "  t = title capitalization"
+    print "  c = capitalize first letter"
+    print "  l = lowercase"
+    print "  u = uppercase"
+    print "  s = swapcase"
+    print "  r = replace:oldvalue:newvalue"
     print
 
 if __name__ == "__main__":
