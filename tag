@@ -75,77 +75,87 @@ def main():
         args.append(os.getcwd())
 
     for path in args:
-        path = path.decode("utf-8")
+        path = os.path.abspath(path)
         if os.path.isfile(path):
-            path = os.path.abspath(path)
-            tagfiles(options,os.path.dirname(path),[os.path.basename(path)])
+            tagfile(options,path)
         elif os.path.isdir(path):
-            os.path.walk(path,tagfiles,options)
+            for root, dirs, files in os.walk(path):
+                files.sort()
+                for file in files:
+                    tagfile(options,os.path.join(root,file))
+        
+    return 
 
-def tagfiles(args,dirname,files):
-    files.sort()
-    for file in files:
-        filepath = os.path.join(dirname,file)
-        filename,ext = os.path.splitext(filepath)
-        if ext in ALLOWEDEXTS:
-            if args['guess']:
-                tags = guesstags(filepath)
-            else:
-                tags = parsetagsfrompath(filepath)
-                if tags:
-                    tags.update(totals(filepath))
+def tagfile(args,filepath):
+    dirname  = os.path.dirname(filepath)
+    filename,ext = os.path.splitext(filepath)
+    if not ext in ALLOWEDEXTS:
+        return
 
-            if not tags:
-                print "ERROR: unable to derrive tags for " + filepath
-                continue
+    if args['guess']:
+        tags = guesstags(filepath)
+    else:
+        tags = parsetagsfrompath(filepath)
+        if tags:
+            tags.update(totals(filepath))
+
+    if not tags:
+        print "ERROR: unable to derrive tags for " + filepath
+        return
                     
-            if args['query']:
-                dtags = discogtags(tags)
-                if args['warn']:
-                    printwarnings(tags,dtags)
-                tags.update(dtags)
-            tags.update(args['set'])
-            tags.update(padnumerictags(tags))
-            tags.update(altertags(args['alter'],tags))
+    if args['query']:
+        dtags = discogtags(tags)
+        if args['warn']:
+            printwarnings(tags,dtags)
+        tags.update(dtags)
+    tags.update(args['set'])
+    tags.update(padnumerictags(tags))
+    tags.update(altertags(args['alter'],tags))
+    if args['print']:
+        print "v================v"
+        print filepath
+    if args['rename']:
+        newpath = createfilepathfromtags(args['rename'],tags,ext)
+        if not newpath:
+            return
+        tags = parsetagsfrompath(newpath)
+        if tags:
+            tags.update(totals(filepath))
+        tags.update(padnumerictags(tags))                    
+        checkfilepathfromtags(newpath,tags)
+        if args['print']:
+            print "Renamed:",newpath
+        if not args['dryrun']:
+            try:
+                os.makedirs(os.path.dirname(newpath))
+            except:
+                pass
+            finally:
+                if filepath != newpath:
+                    if os.access(newpath,os.F_OK):
+                        os.remove(newpath)
+                    if args['move']:
+                        shutil.move(filepath,newpath)
+                    else:
+                        shutil.copyfile(filepath,newpath)
+                    filepath = newpath
+        audio = mutagen.File(filepath)
+        if audio:
+            if args['clear']:
+                audio.clear()
+            settags(audio,tags)
             if args['print']:
-                print "v================v"
-                print filepath
-            if args['rename']:
-                newpath = createfilepathfromtags(args['rename'],tags,ext)
-                checkfilepathfromtags(newpath,tags)
-                if args['print']:
-                    print "Renamed:",newpath
-                if not args['dryrun']:
-                    try:
-                        os.makedirs(os.path.dirname(newpath))
-                    except:
-                        pass
-                    finally:
-                        if filepath != newpath:
-                            if os.access(newpath,os.F_OK):
-                                os.remove(newpath)
-                            if args['move']:
-                                shutil.move(filepath,newpath)
-                            else:
-                                shutil.copyfile(filepath,newpath)
-                            filepath = newpath
-            audio = mutagen.File(filepath)
-            if audio:
-                if args['clear']:
-                    audio.clear()
-                settags(audio,tags)
-                if args['print']:
-                    for key in audio:
-                        values = audio[key]
-                        for value in values:
-                            print key.upper(),'=',value
-                    print "^================^"
+                for key in audio:
+                    values = audio[key]
+                    for value in values:
+                        print key.upper(),'=',value
+                print "^================^"
 
-                if args['dryrun'] == False:
-                    s = os.stat(filepath)
-                    os.chmod(filepath, s.st_mode | stat.S_IWUSR)
-                    audio.save()
-                    os.chmod(filepath, s.st_mode)
+            if args['dryrun'] == False:
+                s = os.stat(filepath)
+                os.chmod(filepath, s.st_mode | stat.S_IWUSR)
+                audio.save()
+                os.chmod(filepath, s.st_mode)
     return
 
 def settags(audio,tags):
@@ -289,7 +299,7 @@ def totaltracks(filepath):
                 match = int(match.groups()[0])
                 if match > max:
                     max = match
-    if max > count:
+    if max:
         return max
     return count
 
@@ -308,9 +318,12 @@ def totaldiscs(filepath):
 
 def padnumber(num, max = None):
     if max == None or int(num) < 100:
-        return u"%(tn)02d" % {"tn":int(num)}
+        rv = u"%(tn)02d" % {"tn":int(num)}
     elif int(max) > 100:
-        return u"%(tn)03d" % {"tn":int(num)}
+        rv = u"%(tn)03d" % {"tn":int(num)}
+    else:
+        rv = u"%(tn)d" % {"tn":int(num)}        
+    return rv
 
 discogscache = {}
 def finddiscogrelease(tags):
@@ -486,10 +499,15 @@ def createfilepathfromtags(base,tags,ext):
     for KEY in KEYS:
         if not tags.has_key(KEY):
             print "Error with renaming: necessary tag " + KEY.upper() + " not present"
-            return
+            return None
 
-    char  = tags['albumartist'][0][0]
     albumartist = tags['albumartist'][0]
+    split = albumartist.split()
+    if split[0].lower() in ['a','the']:
+        char = split[1][0]
+    else:
+        char = split[0][0]
+    
     if tags.has_key('category'):
         category = tags['category'][0]
     else:
@@ -506,9 +524,15 @@ def createfilepathfromtags(base,tags,ext):
         album += u'_{'+tags['originaldate'][0]+u'}'
 
     if tags.has_key('discnumber'):
-        album += u'/Part_'+tags['discnumber'][0]
-        if tags.has_key('discsubtitle'):
-            album += u'_-_'+tags['discsubtitle'][0]
+        if tags.has_key('totaltracks'):
+            if int(tags['discnumber'][0]) != int(tags['totaldiscs'][0]):
+                album += u'/Part_'+tags['discnumber'][0]
+                if tags.has_key('discsubtitle'):
+                    album += u'_-_'+tags['discsubtitle'][0]
+        else:
+            album += u'/Part_'+tags['discnumber'][0]
+            if tags.has_key('discsubtitle'):
+                album += u'_-_'+tags['discsubtitle'][0]            
         
     if tags.has_key('tracknumber'):
         title = tags['tracknumber'][0].split('/')[0]+u"="+tags['title'][0]
@@ -528,6 +552,12 @@ def createfilepathfromtags(base,tags,ext):
     if tags.has_key('remixer'):
         title += u"_<"+tags['remixer'][0]+u">"
     title += ext
+
+    char.replace('/','\\')
+    albumartist.replace('/','\\')
+    category.replace('/','\\')
+    album.replace('/','\\')
+    title.replace('/','\\')
     
     path = os.path.join(base,char,albumartist,category,album,title)
     path = string.replace(path,' ','_')
@@ -560,6 +590,8 @@ def guesscategory(tags):
         return u'Live'
     elif album.find('remix') >= 0:
         return u'Remix'
+    elif album.find('promo') >= 0:
+        return u'Promo'
     else:
         return u'Album'
 
