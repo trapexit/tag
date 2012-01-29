@@ -23,20 +23,38 @@ IMPORTANTTAGS = ['date','album','albumartist','artist','title','tracknumber',
                  'totaldiscs','genre','media']
 UNIQUETAGS = ['remixer','originalartist','originalalbum','originaldate',
               'tracknumber']
+REGEXES = {
+    'a0' : u"(?P<char>[^/])",
+    'a'  : u"(?P<artist>[^/]+?)",
+    'aa' : u"(?P<albumartist>[^/]+?)",
+    'oa' : u"(?P<originalartist>[^/]+?)",
+    'b'  : u"(?P<album>[^/]+?)",
+    'ob' : u"(?P<originalalbum>[^/]+?)",
+    't'  : u"(?P<title>[^/]+?)",
+    'y'  : u"(?P<date>\d\d\d\d)",
+    'oy' : u"(?P<originaldate>\d\d\d\d)",
+    'd'  : u"(?P<discnumber>\d+)",
+    'c'  : u"(?P<category>[^/]+?)",
+    'r'  : u"(?P<release>[A-Z])",
+    'n'  : u"(?P<tracknumber>\d+)",
+    'ds' : u"(?P<discsubtitle>[^/]+?)",
+    'e'  : u"(?P<ext>\.[^\.]+?)",
+    'rm' : u"(?P<remixer>[^/]+?)"
+    }
 
 def main():
     opts, args = getopt.getopt(sys.argv[1:],
-                               "hpdcqwgr:s:a:", 
+                               "hpdcqwgr:s:u:a:", 
                                ["help","print","dryrun",
                                 "clear","query",'warn',
                                 "guess","rename=","set=",
-                                "alter=","move"])
+                                "unset=","alter=","move"])
 
     options = {'dryrun':False,'print':False,
                'clear':False,'query':False,
                'warn':False,'guess':False,
                'rename':False,'set':{},
-               'alter':{},'move':False}
+               'unset':[],'alter':{},'move':False}
     for o,a in opts:
         if o in ("-d","--dryrun"):
             options['dryrun'] = True
@@ -64,6 +82,8 @@ def main():
                 options['set'][key].append(value.decode("utf-8"))
             else:
                 options['set'][key] = [value.decode("utf-8")]
+        elif o in ('-u','--unset'):
+            options['unset'].extend(a.split(','))
         elif o in ('-a','--alter'):
             key,value = a.split('=')
             options['alter'][key.lower()] = value
@@ -111,6 +131,9 @@ def tagfile(args,filepath):
     tags.update(args['set'])
     tags.update(padnumerictags(tags))
     tags.update(altertags(args['alter'],tags))
+    for value in args['unset']:
+        if tags.has_key(value):
+            del tags[value]
     if args['print']:
         print "v================v"
         print filepath
@@ -186,31 +209,19 @@ def padnumerictags(tags):
         tags['totaldiscs'] = [padnumber(tags['totaldiscs'][0])]
 
     return tags
-        
-def parsetagsfrompath(path):
+
+def parsetagsfromdirpath(path):
     FILEPATH=os.path.abspath(path)
-    FILENAME=os.path.basename(FILEPATH)
-    PATH=os.path.dirname(FILEPATH)+'/';
-    
+    if os.path.isfile(FILEPATH):
+        PATH=os.path.dirname(FILEPATH)+os.sep;
+    elif os.path.isdir(FILEPATH):
+        PATH+=os.sep
+    elif not os.path.splitext(FILEPATH)[1]:
+        PATH=FILEPATH
+    elif os.path.splitext(FILEPATH)[1]:
+        PATH=os.path.dirname(FILEPATH)+os.sep
+
     T = string.Template
-    R = {}
-    R['a0']  = u"(?P<char>[^/])"
-    R['a']   = u"(?P<artist>[^/]+?)"
-    R['aa']  = u"(?P<albumartist>[^/]+?)"    
-    R['oa']  = u"(?P<originalartist>[^/]+?)"
-    R['b']   = u"(?P<album>[^/]+?)"
-    R['ob']  = u"(?P<originalalbum>[^/]+?)"
-    R['t']   = u"(?P<title>[^/]+?)"
-    R['y']   = u"(?P<date>\d\d\d\d)"
-    R['oy']  = u"(?P<originaldate>\d\d\d\d)"
-    R['d']   = u"(?P<discnumber>\d+)"
-    R['c']   = u"(?P<category>[^/]+?)"
-    R['r']   = u"(?P<release>[A-Z])"
-    R['n']   = u"(?P<tracknumber>\d+)"
-    R['ds']  = u"(?P<discsubtitle>[^/]+?)"
-    R['e']   = u"(?P<ext>\.[^\.]+?)"
-    R['rm']  = u"(?P<remixer>[^/]+?)"
-    # Other tags? MEDIA,DISCTOTAL,TOTALDISCS,TRACKTOTAL,TOTALTRACKS,GENRE
     
     PATTERNS = [
         u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}_-_${ds}/',
@@ -221,6 +232,35 @@ def parsetagsfrompath(path):
         u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/',
         u'/${a0}/${aa}/${c}/${y}${r}=${b}/',
         u'/${a0}/${aa}/${c}/${b}/']
+    
+    TAGS = {}
+    for pattern in PATTERNS:
+        reg = T(pattern).substitute(REGEXES)
+        m = re.search(reg,PATH,re.UNICODE)
+        if m:
+            TAGS.update(m.groupdict())
+            break
+
+    if TAGS:
+        if not TAGS.has_key('artist') and TAGS.has_key('albumartist'):
+            TAGS['artist'] = TAGS['albumartist']
+        
+        if 'char' in TAGS: del TAGS['char']
+        if 'release' in TAGS: del TAGS['release']
+        if 'ext' in TAGS: del TAGS['ext']
+
+        for key,value in TAGS.iteritems():
+            if not isinstance(value,unicode):
+                value = value.decode("utf-8")
+            TAGS[key] = [value.replace('_',' ')]
+
+    return TAGS
+
+def parsetagsfromfilename(filename):
+    FILEPATH=os.path.abspath(filename)
+    FILENAME=os.path.basename(FILEPATH)
+    
+    T = string.Template
     
     FILENAMEPATTERNS = [
         u'${t}_\[${a}\]_\{${oa}\|${oy}\|${ob}\}${e}',
@@ -241,36 +281,22 @@ def parsetagsfrompath(path):
         u'${t}${e}']
     
     TAGS = {}
-    for pattern in PATTERNS:
-        reg = T(pattern).substitute(R)
-        m = re.search(reg,PATH,re.UNICODE)
-        if m:
-            TAGS.update(m.groupdict())
-            break
-
-    additional = {}
     for pattern in FILENAMEPATTERNS:
-        reg = T(u'${n}='+pattern).substitute(R)
+        reg = T(u'${n}='+pattern).substitute(REGEXES)
         m = re.match(u'^'+reg+u'$',FILENAME,re.UNICODE)
         if m:
-            additional = m.groupdict()
+            TAGS = m.groupdict()
             break
 
-    if not additional:
+    if not TAGS:
         for pattern in FILENAMEPATTERNS:
-            reg = T(pattern).substitute(R)
+            reg = T(pattern).substitute(REGEXES)
             m = re.match(u'^'+reg+u'$',FILENAME,re.UNICODE)
             if m:
-                additional = m.groupdict()
+                TAGS = m.groupdict()
                 break
 
-    TAGS.update(additional)        
-
     if TAGS:
-        TAGS.setdefault('artist',TAGS.get('albumartist',''))
-        
-        if 'char' in TAGS: del TAGS['char']
-        if 'release' in TAGS: del TAGS['release']
         if 'ext' in TAGS: del TAGS['ext']
 
         for key,value in TAGS.iteritems():
@@ -278,6 +304,11 @@ def parsetagsfrompath(path):
                 value = value.decode("utf-8")
             TAGS[key] = [value.replace('_',' ')]
 
+    return TAGS
+
+def parsetagsfrompath(filepath):
+    TAGS = parsetagsfromdirpath(filepath)
+    TAGS.update(parsetagsfromfilename(filepath))
     return TAGS
 
 def totals(filepath):
@@ -430,6 +461,9 @@ def guesstags(filepath):
         if tag in tags:
             del tags[tag]
     tags.update(scrapetagsfrom([filepath]))
+
+    tags.update(parsetagsfromdirpath(filepath))
+    
     if not tags.has_key('tracknumber'):
         tn = re.search('(\d+)',filename)
         if tn:
@@ -481,6 +515,11 @@ def guesstags(filepath):
 
     if not tags.has_key('category'):
         tags['category'] = [guesscategory(tags)]
+
+    if tags.has_key('date'):
+        rv = re.search('(\d\d\d\d)',tags['date'][0])
+        if rv:
+            tags['date'] = [rv.group(0).strip()]
             
     return tags;
 
@@ -659,6 +698,7 @@ def usage():
     print " -r | --rename=<path>     : rename to standard path"
     print " -m | --move              : when renaming delete the original file"
     print " -s | --set=\"KEY=VALUE\"   : sets/overwrites tag"
+    print " -u | --unset=""          : unset tags"
     print " -a | --alter=\"KEY=<mod>\" : alter tags"
     print "  <mod> = \"t|c|l|u|s|r:old:new\""
     print "  t = title capitalization"
