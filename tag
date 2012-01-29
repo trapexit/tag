@@ -139,23 +139,23 @@ def tagfile(args,filepath):
                     else:
                         shutil.copyfile(filepath,newpath)
                     filepath = newpath
-        audio = mutagen.File(filepath)
-        if audio:
-            if args['clear']:
-                audio.clear()
-            settags(audio,tags)
-            if args['print']:
-                for key in audio:
-                    values = audio[key]
-                    for value in values:
-                        print key.upper(),'=',value
-                print "^================^"
+    audio = mutagen.File(filepath)
+    if audio:
+        if args['clear']:
+            audio.clear()
+        settags(audio,tags)
+        if args['print']:
+            for key in audio:
+                values = audio[key]
+                for value in values:
+                    print key.upper(),'=',value
+            print "^================^"
 
-            if args['dryrun'] == False:
-                s = os.stat(filepath)
-                os.chmod(filepath, s.st_mode | stat.S_IWUSR)
-                audio.save()
-                os.chmod(filepath, s.st_mode)
+        if args['dryrun'] == False:
+            s = os.stat(filepath)
+            os.chmod(filepath, s.st_mode | stat.S_IWUSR)
+            audio.save()
+            os.chmod(filepath, s.st_mode)
     return
 
 def settags(audio,tags):
@@ -194,63 +194,64 @@ def parsetagsfrompath(path):
     
     T = string.Template
     R = {}
-    R['a0']  = "(?P<char>[^/])"
-    R['a']   = "(?P<artist>[^/]+?)"
-    R['aa']  = "(?P<albumartist>[^/]+?)"    
-    R['oa']  = "(?P<originalartist>[^/]+?)"
-    R['b']   = "(?P<album>[^/]+?)"
-    R['ob']  = "(?P<originalalbum>[^/]+?)"
-    R['t']   = "(?P<title>[^/]+?)"
-    R['y']   = "(?P<date>\d\d\d\d)"
-    R['oy']  = "(?P<originaldate>\d\d\d\d)"
-    R['d']   = "(?P<discnumber>\d+)"
-    R['c']   = "(?P<category>[^/]+?)"
-    R['r']   = "(?P<release>[A-Z])"
-    R['n']   = "(?P<tracknumber>\d+)"
-    R['ds']  = "(?P<discsubtitle>[^/]+?)"
-    R['e']   = "(?P<ext>\.[^\.]+?)"
-    R['rm']  = "(?P<remixer>[^/]+?)"
+    R['a0']  = u"(?P<char>[^/])"
+    R['a']   = u"(?P<artist>[^/]+?)"
+    R['aa']  = u"(?P<albumartist>[^/]+?)"    
+    R['oa']  = u"(?P<originalartist>[^/]+?)"
+    R['b']   = u"(?P<album>[^/]+?)"
+    R['ob']  = u"(?P<originalalbum>[^/]+?)"
+    R['t']   = u"(?P<title>[^/]+?)"
+    R['y']   = u"(?P<date>\d\d\d\d)"
+    R['oy']  = u"(?P<originaldate>\d\d\d\d)"
+    R['d']   = u"(?P<discnumber>\d+)"
+    R['c']   = u"(?P<category>[^/]+?)"
+    R['r']   = u"(?P<release>[A-Z])"
+    R['n']   = u"(?P<tracknumber>\d+)"
+    R['ds']  = u"(?P<discsubtitle>[^/]+?)"
+    R['e']   = u"(?P<ext>\.[^\.]+?)"
+    R['rm']  = u"(?P<remixer>[^/]+?)"
     # Other tags? MEDIA,DISCTOTAL,TOTALDISCS,TRACKTOTAL,TOTALTRACKS,GENRE
     
     PATTERNS = [
-        '/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}_-_${ds}/',
-        '/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}_-_${ds}/',
-        '/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/${ds}/',
-        '/${a0}/${aa}/${c}/${y}${r}=${b}/${ds}/',
-        '/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/',
-        '/${a0}/${aa}/${c}/${y}${r}=${b}/',
-        '/${a0}/${aa}/${c}/${b}/']
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}_-_${ds}/',
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}_-_${ds}/',
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}/',        
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/${ds}/',
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}/${ds}/',
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/',
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}/',
+        u'/${a0}/${aa}/${c}/${b}/']
     
     FILENAMEPATTERNS = [
-        '${t}_\[${a}\]_\{${oa}\|${oy}\|${ob}\}${e}',
-        '${t}_\[${a}\]_\{${oa}\|${oy}\}${e}',
-        '${t}_\[${a}\]_\{${oa}\|${ob}\}${e}',
-        '${t}_\[${a}\]_\{${oa}\}${e}',
-        '${t}_\[${a}\]_\<${rm}\>${e}',        
-        '${t}_\[${a}\]${e}',
-        '${t}_\{${oa}\|${oy}\|${ob}\}${e}',
-        '${t}_\{${oa}\|${oy}\}${e}',
-        '${t}_\{${oa}\|${ob}\}${e}',
-        '${t}_\{${oa}\}${e}',
-        '${t}_\{${oa}\|${oy}|${ob}\}_\<${rm}\>${e}',
-        '${t}_\{${oa}\|${oy}\}_\<${rm}\>${e}',
-        '${t}_\{${oa}\|${ob}\}_\<${rm}\>${e}',
-        '${t}_\{${oa}\}_\<${rm}\>${e}',
-        '${t}_\<${rm}\>${e}',
-        '${t}${e}']
+        u'${t}_\[${a}\]_\{${oa}\|${oy}\|${ob}\}${e}',
+        u'${t}_\[${a}\]_\{${oa}\|${oy}\}${e}',
+        u'${t}_\[${a}\]_\{${oa}\|${ob}\}${e}',
+        u'${t}_\[${a}\]_\{${oa}\}${e}',
+        u'${t}_\[${a}\]_\<${rm}\>${e}',        
+        u'${t}_\[${a}\]${e}',
+        u'${t}_\{${oa}\|${oy}\|${ob}\}${e}',
+        u'${t}_\{${oa}\|${oy}\}${e}',
+        u'${t}_\{${oa}\|${ob}\}${e}',
+        u'${t}_\{${oa}\}${e}',
+        u'${t}_\{${oa}\|${oy}|${ob}\}_\<${rm}\>${e}',
+        u'${t}_\{${oa}\|${oy}\}_\<${rm}\>${e}',
+        u'${t}_\{${oa}\|${ob}\}_\<${rm}\>${e}',
+        u'${t}_\{${oa}\}_\<${rm}\>${e}',
+        u'${t}_\<${rm}\>${e}',
+        u'${t}${e}']
     
     TAGS = {}
     for pattern in PATTERNS:
         reg = T(pattern).substitute(R)
-        m = re.search(reg,PATH)
+        m = re.search(reg,PATH,re.UNICODE)
         if m:
             TAGS.update(m.groupdict())
             break
 
-    additional = None
+    additional = {}
     for pattern in FILENAMEPATTERNS:
-        reg = T('${n}='+pattern).substitute(R)
-        m = re.match('^'+reg+'$',FILENAME)
+        reg = T(u'${n}='+pattern).substitute(R)
+        m = re.match(u'^'+reg+u'$',FILENAME,re.UNICODE)
         if m:
             additional = m.groupdict()
             break
@@ -258,7 +259,7 @@ def parsetagsfrompath(path):
     if not additional:
         for pattern in FILENAMEPATTERNS:
             reg = T(pattern).substitute(R)
-            m = re.match('^'+reg+'$',FILENAME)
+            m = re.match(u'^'+reg+u'$',FILENAME,re.UNICODE)
             if m:
                 additional = m.groupdict()
                 break
@@ -273,6 +274,8 @@ def parsetagsfrompath(path):
         if 'ext' in TAGS: del TAGS['ext']
 
         for key,value in TAGS.iteritems():
+            if not isinstance(value,unicode):
+                value = value.decode("utf-8")
             TAGS[key] = [value.replace('_',' ')]
 
     return TAGS
@@ -515,7 +518,10 @@ def createfilepathfromtags(base,tags,ext):
 
     if tags.has_key('date'):
         date = tags['date'][0]
-        release = findnextrelease([base,char,albumartist,date])
+        if tags.has_key('release'):
+            release = tags['release'][0]
+        else:
+            release = findnextrelease([base,char,albumartist,date])
         album = date+release+u"="+tags['album'][0]
     else:
         album = tags['album'][0]
@@ -524,15 +530,9 @@ def createfilepathfromtags(base,tags,ext):
         album += u'_{'+tags['originaldate'][0]+u'}'
 
     if tags.has_key('discnumber'):
-        if tags.has_key('totaltracks'):
-            if int(tags['discnumber'][0]) != int(tags['totaldiscs'][0]):
-                album += u'/Part_'+tags['discnumber'][0]
-                if tags.has_key('discsubtitle'):
-                    album += u'_-_'+tags['discsubtitle'][0]
-        else:
-            album += u'/Part_'+tags['discnumber'][0]
-            if tags.has_key('discsubtitle'):
-                album += u'_-_'+tags['discsubtitle'][0]            
+        album += u'/Part_'+tags['discnumber'][0]
+        if tags.has_key('discsubtitle'):
+            album += u'_-_'+tags['discsubtitle'][0]
         
     if tags.has_key('tracknumber'):
         title = tags['tracknumber'][0].split('/')[0]+u"="+tags['title'][0]
