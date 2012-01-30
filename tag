@@ -163,7 +163,7 @@ def tagfile(args,filepath):
                         shutil.copyfile(filepath,newpath)
                     filepath = newpath
     audio = mutagen.File(filepath)
-    if audio:
+    if audio != None:
         if args['clear']:
             audio.clear()
         settags(audio,tags)
@@ -600,7 +600,7 @@ def createfilepathfromtags(base,tags,ext):
     
     path = os.path.join(base,char,albumartist,category,album,title)
     path = string.replace(path,' ','_')
-    
+
     return path
 
 def checkfilepathfromtags(filepath,tags):
