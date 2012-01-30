@@ -165,7 +165,7 @@ def tagfile(args,filepath):
     audio = mutagen.File(filepath)
     if audio != None:
         if args['clear']:
-            audio.clear()
+            cleartags(audio)
         settags(audio,tags)
         if args['print']:
             for key in audio:
@@ -181,12 +181,27 @@ def tagfile(args,filepath):
             os.chmod(filepath, s.st_mode)
     return
 
+def cleartags(audio):
+    sf = None
+    if audio.has_key('source_format'):
+        sf = audio['source_format']
+    elif audio.has_key('sourceformat'):
+        sf = audio['sourceformat']
+
+    audio.clear()
+    if sf:
+        audio['sourceformat'] = sf
+
 def settags(audio,tags):
     if audio.has_key('source_format'):
         tags['sourceformat'] = audio['source_format']
     elif audio.has_key('sourceformat'):
         tags['sourceformat'] = audio['sourceformat']
 
+    for tag in ['char','release','ext']:
+        if tags.has_key(tag):
+            del tags[tag]
+        
     for key,value in tags.iteritems():
         audio[key] = value
 
@@ -245,10 +260,6 @@ def parsetagsfromdirpath(path):
         if not TAGS.has_key('artist') and TAGS.has_key('albumartist'):
             TAGS['artist'] = TAGS['albumartist']
         
-        if 'char' in TAGS: del TAGS['char']
-        if 'release' in TAGS: del TAGS['release']
-        if 'ext' in TAGS: del TAGS['ext']
-
         for key,value in TAGS.iteritems():
             if not isinstance(value,unicode):
                 value = value.decode("utf-8")
