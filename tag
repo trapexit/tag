@@ -22,7 +22,7 @@ IMPORTANTTAGS = ['date','album','albumartist','artist','title','tracknumber',
                  'originalalbum','originaldate','totaltracks',
                  'totaldiscs','genre','media']
 UNIQUETAGS = ['remixer','originalartist','originalalbum','originaldate',
-              'tracknumber']
+              'tracknumber','title']
 REGEXES = {
     'a0' : u"(?P<char>[^/])",
     'a'  : u"(?P<artist>[^/]+?)",
@@ -85,7 +85,7 @@ def main():
         elif o in ('-u','--unset'):
             options['unset'].extend(a.split(','))
         elif o in ('-a','--alter'):
-            key,value = a.split('=')
+            key,value = a.split('=',1)
             options['alter'][key.lower()] = value
         elif o in ("-h","--help"):
             usage()
@@ -478,12 +478,13 @@ def guesstags(filepath):
     if not tags.has_key('tracknumber'):
         tn = re.search('(\d+)',filename)
         if tn:
-            tags['tracknumber'] = [tn.group().decode('utf-8')]
-    if not tags.has_key('totaltracks') and tags.has_key('tracknumber'):
+            tags['tracknumber'] = [tn.group()]
+    if tags.has_key('tracknumber'):
         split = tags['tracknumber'][0].split('/')
         if len(split) == 2:
-            tags['tracknumber'] = [split[0].decode('utf-8')]
-            tags['totaltracks'] = [split[1].decode('utf-8')]
+            tags['tracknumber'] = [split[0]]
+            if not tags.has_key('totaltracks'):
+                tags['totaltracks'] = [split[1]]
         else:
             tags['totaltracks'] = [unicode(totaltracks(filepath))]
 
