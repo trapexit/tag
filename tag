@@ -487,12 +487,14 @@ def guesstags(filepath):
                 tags['totaltracks'] = [split[1]]
         else:
             tags['totaltracks'] = [unicode(totaltracks(filepath))]
+        if not tags['tracknumber'][0].isdigit():
+            tags['tracknumber'] = [guesstracknumber(filepath)]
 
     if not tags.has_key('totaldiscs') and tags.has_key('discnumber'):
         split = tags['discnumber'][0].split('/')
         if len(split) == 2:
-            tags['discnumber'] = [split[0].decode('utf-8')]
-            tags['totaldiscs'] = [split[1].decode('utf-8')]
+            tags['discnumber'] = [split[0]]
+            tags['totaldiscs'] = [split[1]]
         else:
             tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
 
@@ -572,7 +574,8 @@ def createfilepathfromtags(base,tags,ext):
         if tags.has_key('release'):
             release = tags['release'][0]
         else:
-            release = findnextrelease([base,char,albumartist,date])
+            path = os.path.join(base,char,albumartist,category)
+            release = findnextrelease(path,tags['date'][0])
         album = date+release+u"="+tags['album'][0]
     else:
         album = tags['album'][0]
@@ -626,8 +629,20 @@ def checkfilepathfromtags(filepath,tags):
             print newtags,"\n", tags
             sys.exit(0)
 
-def findnextrelease(blah):
-    return u"A"
+def findnextrelease(path,year):
+    if os.path.exists(path) and os.path.isdir(path):
+        pattern = u'^'+year+u'([A-Z])'
+        rv = 'A'
+        files = os.listdir(path)
+        for file in files:
+            match = re.match(pattern,file,re.UNICODE)
+            if match:
+                match = match.groups()[0]
+                if match > rv:
+                    rv = match
+        return unichr(ord(rv)+1)
+    else:
+        return 'A'
 
 def guesscategory(tags):
     album = tags.get('album',[''])[0].lower()
@@ -645,6 +660,21 @@ def guesscategory(tags):
         return u'Promo'
     else:
         return u'Album'
+
+def guesstracknumber(filepath):
+    dirname = os.path.dirname(filepath)
+    basename = os.path.basename(filepath)
+    filename,ext = os.path.splitext(basename)
+    files = os.listdir(dirname)
+    files.sort()
+    count = 0
+    for file in files:
+        tmpfilename,tmpext = os.path.splitext(file)
+        if tmpext == ext:
+            count += 1
+            if tmpfilename == filename:
+                break
+    return count
 
 # "album=t|u|l|r:old:new "
 def altertags(alters,tags):
