@@ -92,7 +92,7 @@ def main():
             sys.exit(1)
 
     if len(args) == 0:
-        args.append(os.getcwd())
+        args.append(os.getcwdu())
 
     for path in args:
         path = os.path.abspath(path)
@@ -190,7 +190,7 @@ def tagfile(args,filepath):
                 audio.save()
                 os.chmod(filepath, s.st_mode)
     except Exception as e:
-        print "Error:",e
+        print "Error:",e,filepath
         
     return
 
@@ -352,7 +352,7 @@ def totaltracks(filepath):
         filename,ext = os.path.splitext(file)
         if ext in ALLOWEDEXTS:
             count += 1
-            match = re.match("^(\d+)=.*$",file)
+            match = re.match("^(\d+)=.*$",file,re.UNICODE)
             if match:
                 match = int(match.groups()[0])
                 if match > max:
@@ -367,7 +367,7 @@ def totaldiscs(filepath):
     files = os.listdir(dirname)
     max = 0
     for file in files:
-        match = re.match("(Part|Side|Disc)_(\d+).*",file)
+        match = re.match("(Part|Side|Disc)_(\d+).*",file,re.UNICODE)
         if match:
             match = int(match.groups()[1])
             if match > max:
@@ -489,25 +489,25 @@ def guesstags(filepath):
     tags.update(parsetagsfromdirpath(filepath))
     
     if not tags.has_key('tracknumber'):
-        tn = re.search('(\d+)',filename)
+        tn = re.search('(\d+)',filename,re.UNICODE)
         if tn:
-            tags['tracknumber'] = [tn.group()]
+            tags['tracknumber'] = [unicode(tn.group())]
     if tags.has_key('tracknumber'):
         split = tags['tracknumber'][0].split('/')
         if len(split) == 2:
-            tags['tracknumber'] = [split[0]]
+            tags['tracknumber'] = [unicode(split[0])]
             if not tags.has_key('totaltracks'):
-                tags['totaltracks'] = [split[1]]
+                tags['totaltracks'] = [unicode(split[1])]
         else:
             tags['totaltracks'] = [unicode(totaltracks(filepath))]
         if not tags['tracknumber'][0].isdigit():
-            tags['tracknumber'] = [guesstracknumber(filepath)]
+            tags['tracknumber'] = [unicode(guesstracknumber(filepath))]
 
     if not tags.has_key('totaldiscs') and tags.has_key('discnumber'):
         split = tags['discnumber'][0].split('/')
         if len(split) == 2:
-            tags['discnumber'] = [split[0]]
-            tags['totaldiscs'] = [split[1]]
+            tags['discnumber'] = [unicode(split[0])]
+            tags['totaldiscs'] = [unicode(split[1])]
         else:
             tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
 
@@ -521,7 +521,7 @@ def guesstags(filepath):
         if not lcs:
            lcs = os.path.basename(dirname)
         
-        match = re.match('(.*)[ _]-[ _](.*)',lcs)
+        match = re.match('(.*)[ _]-[ _](.*)',lcs,re.UNICODE)
         if match:
             if not tags.has_key('artist'):
                 tags['artist'] = [match.group(1).strip()]
@@ -534,11 +534,11 @@ def guesstags(filepath):
                 tags['album'] = [lcs.strip()]
 
     if not tags.has_key('title'):
-        rv = re.search(u'(.*?)(\d+)(.*)',filename)
+        rv = re.search(u'(.*?)(\d+)(.*)',filename,re.UNICODE)
         if rv and int(rv.group(2)) == int(tags['tracknumber'][0]):
             tags['title'] = [rv.group(3).strip()]
         else:
-            tags['title'] = [filename.strip()]
+            tags['title'] = [unicode(filename.strip())]
 
     if not tags.has_key('category'):
         tags['category'] = [guesscategory(tags)]
@@ -604,7 +604,7 @@ def createfilepathfromtags(base,tags,ext):
         album += u'/Part_'+tags['discnumber'][0]
         if tags.has_key('discsubtitle'):
             album += u'_-_'+tags['discsubtitle'][0]
-        
+
     if tags.has_key('tracknumber'):
         title = tags['tracknumber'][0].split('/')[0]+u"="+tags['title'][0]
     else:
