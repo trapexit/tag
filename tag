@@ -171,23 +171,27 @@ def tagfile(args,filepath):
                 else:
                     print "Error:",e
                 return
-    audio = mutagen.File(filepath)
-    if audio != None:
-        if args['clear']:
-            cleartags(audio)
-        settags(audio,tags)
-        if args['print']:
-            for key in audio:
-                values = audio[key]
-                for value in values:
-                    print key.upper(),'=',value
-            print "^================^"
+    try:
+        audio = mutagen.File(filepath)
+        if audio != None:
+            if args['clear']:
+                cleartags(audio)
+            settags(audio,tags)
+            if args['print']:
+                for key in audio:
+                    values = audio[key]
+                    for value in values:
+                        print key.upper(),'=',value
+                print "^================^"
 
-        if args['dryrun'] == False:
-            s = os.stat(filepath)
-            os.chmod(filepath, s.st_mode | stat.S_IWUSR)
-            audio.save()
-            os.chmod(filepath, s.st_mode)
+            if args['dryrun'] == False:
+                s = os.stat(filepath)
+                os.chmod(filepath, s.st_mode | stat.S_IWUSR)
+                audio.save()
+                os.chmod(filepath, s.st_mode)
+    except Exception as e:
+        print "Error:",e
+        
     return
 
 def cleartags(audio):
@@ -552,11 +556,15 @@ def scrapetagsfrom(files):
         filename,ext = os.path.splitext(filepath)
         if not ext in ALLOWEDEXTS:
             continue
-        audio = mutagen.File(filepath)
-        if audio:
+        try:
+            audio = mutagen.File(filepath)
+            if not audio:
+                continue
             for tag in IMPORTANTTAGS:
                 if not tags.has_key(tag) and audio.has_key(tag):
                     tags[tag] = audio[tag]
+        except:
+            pass
     return tags
 
 def createfilepathfromtags(base,tags,ext):
@@ -659,17 +667,17 @@ def findnextrelease(path,year,album):
 
 def guesscategory(tags):
     album = tags.get('album',[''])[0].lower()
-    if album.find('single') >= 0:
+    if re.search('[\s(]*single[)\s]*',album):
         return u'Single'
-    elif album.find('ep') >= 0:
+    elif re.search('[\s(]*ep[)\s]*',album):
         return u'EP'
-    elif album.find('demo') >= 0:
+    elif re.search('[\s(]*demo[)\s]*',album):
         return u'Demo'
-    elif album.find('live') >= 0:
+    elif re.search('[\s(]*live[)\s]*',album):
         return u'Live'
-    elif album.find('remix') >= 0:
+    elif re.search('[\s(]*remix[)\s]*',album):
         return u'Remix'
-    elif album.find('promo') >= 0:
+    elif re.search('[\s(]*promo[)\s]*',album):
         return u'Promo'
     else:
         return u'Album'
