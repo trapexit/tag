@@ -147,13 +147,16 @@ def tagfile(args,filepath):
         tags.update(padnumerictags(tags))                    
         checkfilepathfromtags(newpath,tags)
         if args['print']:
-            print "Renamed:",newpath
+            if args['move']:
+                word = "Move"
+            else:
+                word = "Copy"
+            print word+ " to: " + newpath
         if not args['dryrun']:
             try:
-                os.makedirs(os.path.dirname(newpath))
-            except:
-                pass
-            finally:
+                dirname = os.path.dirname(newpath)
+                if not os.path.exists(dirname):
+                    os.makedirs(dirname)
                 if filepath != newpath:
                     if os.access(newpath,os.F_OK):
                         os.remove(newpath)
@@ -162,6 +165,12 @@ def tagfile(args,filepath):
                     else:
                         shutil.copyfile(filepath,newpath)
                     filepath = newpath
+            except Exception as e:
+                if not os.path.exists(newpath):
+                    print "Error creating path: " + os.path.dirname(newpath)
+                else:
+                    print "Error:",e
+                return
     audio = mutagen.File(filepath)
     if audio != None:
         if args['clear']:
@@ -575,7 +584,7 @@ def createfilepathfromtags(base,tags,ext):
             release = tags['release'][0]
         else:
             path = os.path.join(base,char,albumartist,category)
-            release = findnextrelease(path,tags['date'][0])
+            release = findnextrelease(path,tags['date'][0],tags['album'][0])
         album = date+release+u"="+tags['album'][0]
     else:
         album = tags['album'][0]
@@ -629,12 +638,16 @@ def checkfilepathfromtags(filepath,tags):
             print newtags,"\n", tags
             sys.exit(0)
 
-def findnextrelease(path,year):
+def findnextrelease(path,year,album):
     if os.path.exists(path) and os.path.isdir(path):
-        pattern = u'^'+year+u'([A-Z])'
+        pattern  = u'^'+year+u'([A-Z])'
+        pattern2 = pattern+'='+album.replace(' ','_')
         rv = 'A'
         files = os.listdir(path)
         for file in files:
+            match = re.match(pattern2,file,re.UNICODE)
+            if match:
+                return match.groups()[0]
             match = re.match(pattern,file,re.UNICODE)
             if match:
                 match = match.groups()[0]
