@@ -539,6 +539,9 @@ def guesstags(filepath):
             tags['title'] = [rv.group(3).strip()]
         else:
             tags['title'] = [unicode(filename.strip())]
+        lcs = LongestCommonSubstring(tags['title'][0],tags['albumartist'][0])
+        tags['title'][0] = tags['title'][0].replace(lcs,'').strip(' _-')
+        
 
     if not tags.has_key('category'):
         tags['category'] = [guesscategory(tags)]
