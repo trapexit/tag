@@ -1,0 +1,40 @@
+Tagging from filepath.
+
+<alpha> ::= A-Z / a-z
+<digit> ::= 0-9
+<char>  ::= <alpha> | <digit> | "_"
+<string> ::= *( <alpha> | <digit> )
+
+<filepath> ::= <path> "/" <filename>
+
+<albumartist> ::= <string>
+
+<album> ::= [ <year> <alpha> "=" ] <albumtitle> [ "_{" <originalyear> "}" ]
+
+<part> ::= "Disc_" <digit> [ "_-_" <subtitle> ]
+           "Part_" <digit> [ "_-_" <subtitle> ]
+
+<subtitle> ::= <string>
+
+<year> ::= 4*<digit>
+
+<originalartist> ::= <string>
+
+<originalalbum> ::= <string>
+
+<originalyear> ::= <year>                
+
+<path> ::= <char> "/" <albumartist> "/" <category> "/" <album> "/" |
+           <char> "/" <albumartist> "/" <category> "/" <album> "/" <part>
+
+<original> ::= "_{" <originalartist> "|" <originalyear> "|" <originalalbum> "}" |
+               "_{" <originalartist> "|" <originalyear> "}" |
+               "_{" <originalartist> "|" <originalalbum> "}"
+
+<remixer> ::= "_<" <string> ">"
+
+<artist> ::= "_[" <albumartist> "]"
+
+<tracknumber> ::= *<digit>
+
+<filename> ::= [ <tracknumber> "=" ] <title> [ <artist> [ <original> [ <remixer> ] ] ] "." <ext>
