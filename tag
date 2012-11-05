@@ -16,6 +16,7 @@ try:
 except ImportError:
     pass
 
+DEBUG = False
 ALLOWEDEXTS = ['.ogg','.flac']
 IMPORTANTTAGS = ['date','album','albumartist','artist','title','tracknumber',
                  'remixer','discsubtitle','discnumber','originalartist',
@@ -48,18 +49,23 @@ def main():
                                ["help","print","dryrun",
                                 "clear","query",'warn',
                                 "guess","rename=","set=",
-                                "unset=","alter=","move"])
+                                "unset=","alter=","move","debug"])
 
     options = {'dryrun':False,'print':False,
                'clear':False,'query':False,
                'warn':False,'guess':False,
                'rename':False,'set':{},
-               'unset':[],'alter':{},'move':False}
+               'unset':[],'alter':{},'move':False,
+               'debug':False}
     for o,a in opts:
         if o in ("-d","--dryrun"):
             options['dryrun'] = True
         elif o in ('-p','--print'):
             options['print'] = True
+        elif o in ('--debug'):
+            global DEBUG
+            options['debug'] = True
+            DEBUG=True
         elif o in ('-c','--clear'):
             options['clear'] = True
         elif o in ('-q','--query'):
@@ -281,6 +287,7 @@ def parsetagsfromdirpath(path):
     return TAGS
 
 def parsetagsfromfilename(filename):
+    global DEBUG
     FILEPATH=os.path.abspath(filename)
     FILENAME=os.path.basename(FILEPATH)
     
@@ -296,10 +303,12 @@ def parsetagsfromfilename(filename):
         u'${t}_\{${oa}\|${oy}\|${ob}\}${e}',
         u'${t}_\{${oa}\|${oy}\}${e}',
         u'${t}_\{${oa}\|${ob}\}${e}',
+        u'${t}_\{${oy}\}${e}',
         u'${t}_\{${oa}\}${e}',
-        u'${t}_\{${oa}\|${oy}|${ob}\}_\<${rm}\>${e}',
+        u'${t}_\{${oa}\|${oy}\|${ob}\}_\<${rm}\>${e}',
         u'${t}_\{${oa}\|${oy}\}_\<${rm}\>${e}',
         u'${t}_\{${oa}\|${ob}\}_\<${rm}\>${e}',
+        u'${t}_\{${oy}\}_\<${rm}\>${e}',
         u'${t}_\{${oa}\}_\<${rm}\>${e}',
         u'${t}_\<${rm}\>${e}',
         u'${t}${e}']
@@ -309,6 +318,8 @@ def parsetagsfromfilename(filename):
         reg = T(u'${n}='+pattern).substitute(REGEXES)
         m = re.match(u'^'+reg+u'$',FILENAME,re.UNICODE)
         if m:
+            if DEBUG:
+                print "Pattern matched:",pattern
             TAGS = m.groupdict()
             break
 
@@ -317,6 +328,8 @@ def parsetagsfromfilename(filename):
             reg = T(pattern).substitute(REGEXES)
             m = re.match(u'^'+reg+u'$',FILENAME,re.UNICODE)
             if m:
+                if DEBUG:
+                    print "Pattern matched:",pattern
                 TAGS = m.groupdict()
                 break
 
@@ -510,6 +523,10 @@ def guesstags(filepath):
             tags['totaldiscs'] = [unicode(split[1])]
         else:
             tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
+
+    if int(tags['totaldiscs']) == 1:
+        del tags['totaldiscs']
+        del tags['discnumber']
 
     if tags.has_key('albumartist') and not tags.has_key('artist'):
         tags['artist'] = tags['albumartist']
