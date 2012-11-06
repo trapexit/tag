@@ -3,7 +3,7 @@ Tagging from filepath.
 <alpha> ::= A-Z / a-z
 <digit> ::= 0-9
 <char>  ::= <alpha> | <digit> | "_"
-<string> ::= *( <alpha> | <digit> )
+<string> ::= * <char>
 
 <filepath> ::= <path> "/" <filename>
 
@@ -11,7 +11,7 @@ Tagging from filepath.
 
 <album> ::= [ <year> <alpha> "=" ] <albumtitle> [ "_{" <originalyear> "}" ]
 
-<part> ::= "Disc_" <digit> [ "_-_" <subtitle> ]
+<part> ::= "Disc_" <digit> [ "_-_" <subtitle> ] |
            "Part_" <digit> [ "_-_" <subtitle> ]
 
 <subtitle> ::= <string>
@@ -29,7 +29,8 @@ Tagging from filepath.
 
 <original> ::= "_{" <originalartist> "|" <originalyear> "|" <originalalbum> "}" |
                "_{" <originalartist> "|" <originalyear> "}" |
-               "_{" <originalartist> "|" <originalalbum> "}"
+               "_{" <originalartist> "|" <originalalbum> "}" |
+	       "_{" <originalyear> "}"
 
 <remixer> ::= "_<" <string> ">"
 
@@ -38,3 +39,5 @@ Tagging from filepath.
 <tracknumber> ::= *<digit>
 
 <filename> ::= [ <tracknumber> "=" ] <title> [ <artist> [ <original> [ <remixer> ] ] ] "." <ext>
+
+<ext> ::= <string>
