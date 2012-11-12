@@ -524,7 +524,7 @@ def guesstags(filepath):
         else:
             tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
 
-    if int(tags['totaldiscs']) == 1:
+    if int(tags['totaldiscs'][0]) == 1:
         del tags['totaldiscs']
         del tags['discnumber']
 
