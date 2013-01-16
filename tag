@@ -84,6 +84,7 @@ def main():
             options['rename'] = a.decode("utf-8")
         elif o in ('-s','--set'):
             key,value = a.split('=')
+            key = key.lower()
             if options['set'].has_key(key):
                 options['set'][key].append(value.decode("utf-8"))
             else:
@@ -128,7 +129,7 @@ def tagfile(args,filepath):
     if not tags:
         print "ERROR: unable to derrive tags for " + filepath
         return
-                    
+
     if args['query']:
         dtags = discogtags(tags)
         if args['warn']:
@@ -524,7 +525,7 @@ def guesstags(filepath):
         else:
             tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
 
-    if int(tags['totaldiscs'][0]) == 1:
+    if tags.has_key('totaldiscs') and int(tags['totaldiscs'][0]) == 1:
         del tags['totaldiscs']
         del tags['discnumber']
 
