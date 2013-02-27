@@ -277,9 +277,6 @@ def parsetagsfromdirpath(path):
             break
 
     if TAGS:
-        if not TAGS.has_key('artist') and TAGS.has_key('albumartist'):
-            TAGS['artist'] = TAGS['albumartist']
-        
         for key,value in TAGS.iteritems():
             if not isinstance(value,unicode):
                 value = value.decode("utf-8")
@@ -500,8 +497,9 @@ def guesstags(filepath):
             del tags[tag]
     tags.update(scrapetagsfrom([filepath]))
 
-    tags.update(parsetagsfromdirpath(filepath))
-    
+    pathtags = parsetagsfromdirpath(filepath)
+    tags.update(pathtags)
+
     if not tags.has_key('tracknumber'):
         tn = re.search('(\d+)',filename,re.UNICODE)
         if tn:
@@ -623,7 +621,7 @@ def createfilepathfromtags(base,tags,ext):
         album += u'_{'+tags['originaldate'][0]+u'}'
 
     if tags.has_key('discnumber'):
-        album += u'/Part_'+tags['discnumber'][0]
+        album += u'/Disc_'+tags['discnumber'][0]
         if tags.has_key('discsubtitle'):
             album += u'_-_'+tags['discsubtitle'][0]
 
@@ -650,7 +648,7 @@ def createfilepathfromtags(base,tags,ext):
     albumartist.replace('/','\\')
     category.replace('/','\\')
     album.replace('/','\\')
-    title.replace('/','\\')
+    title.replace('\/','-')
     
     path = os.path.join(base,char,albumartist,category,album,title)
     path = string.replace(path,' ','_')
