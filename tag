@@ -45,21 +45,21 @@ REGEXES = {
 
 def main():
     opts, args = getopt.getopt(sys.argv[1:],
-                               "hpdcqwgr:s:u:a:", 
-                               ["help","print","dryrun",
+                               "hpecqwgr:s:u:a:", 
+                               ["help","print","exec",
                                 "clear","query",'warn',
                                 "guess","rename=","set=",
                                 "unset=","alter=","move","debug"])
 
-    options = {'dryrun':False,'print':False,
+    options = {'exec':False,'print':False,
                'clear':False,'query':False,
                'warn':False,'guess':False,
                'rename':False,'set':{},
                'unset':[],'alter':{},'move':False,
                'debug':False}
     for o,a in opts:
-        if o in ("-d","--dryrun"):
-            options['dryrun'] = True
+        if o in ("-e","--exec"):
+            options['exec'] = True
         elif o in ('-p','--print'):
             options['print'] = True
         elif o in ('--debug'):
@@ -159,7 +159,7 @@ def tagfile(args,filepath):
             else:
                 word = "Copy"
             print word+ " to: " + newpath
-        if not args['dryrun']:
+        if args['exec']:
             try:
                 dirname = os.path.dirname(newpath)
                 if not os.path.exists(dirname):
@@ -191,7 +191,7 @@ def tagfile(args,filepath):
                         print key.upper(),'=',value
                 print "^================^"
 
-            if args['dryrun'] == False:
+            if args['exec']:
                 s = os.stat(filepath)
                 os.chmod(filepath, s.st_mode | stat.S_IWUSR)
                 audio.save()
@@ -772,7 +772,7 @@ def usage():
     print "usage: %(name)s [opts] [filepath] ..." % {'name':sys.argv[0]}
     print
     print " -h | --help              : print help"
-    print " -d | --dryrun            : process but don't commit"
+    print " -e | --exec              : process but don't commit"
     print " -p | --print             : print info"
     print " -c | --clear             : clear tags before writing new ones"
     print " -q | --query             : query discogs for additional info"
