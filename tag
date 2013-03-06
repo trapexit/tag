@@ -594,6 +594,7 @@ def createfilepathfromtags(base,tags,ext):
             print "Error with renaming: necessary tag " + KEY.upper() + " not present"
             return None
 
+    subtitle = ''
     albumartist = tags['albumartist'][0]
     split = albumartist.split()
     if split[0].lower() in ['a','the']:
@@ -621,9 +622,9 @@ def createfilepathfromtags(base,tags,ext):
         album += u'_{'+tags['originaldate'][0]+u'}'
 
     if tags.has_key('discnumber'):
-        album += u'/Disc_'+tags['discnumber'][0]
+        subtitle = u'Disc_'+tags['discnumber'][0]
         if tags.has_key('discsubtitle'):
-            album += u'_-_'+tags['discsubtitle'][0]
+            subtitle += u'_-_'+tags['discsubtitle'][0]
 
     if tags.has_key('tracknumber'):
         title = tags['tracknumber'][0].split('/')[0]+u"="+tags['title'][0]
@@ -644,13 +645,17 @@ def createfilepathfromtags(base,tags,ext):
         title += u"_<"+tags['remixer'][0]+u">"
     title += ext
 
-    char.replace('/','\\')
-    albumartist.replace('/','\\')
-    category.replace('/','\\')
-    album.replace('/','\\')
-    title.replace('\/','-')
-    
-    path = os.path.join(base,char,albumartist,category,album,title)
+    subtitle    = re.sub(r'[_ ]*/[_ ]*',r'_-_',subtitle)
+    albumartist = re.sub(r'[_ ]*/[_ ]*',r'_-_',albumartist)
+    category    = re.sub(r'[_ ]*/[_ ]*',r'_-_',category)
+    album       = re.sub(r'[_ ]*/[_ ]*',r'_-_',album)
+    title       = re.sub(r'[_ ]*/[_ ]*',r'_-_',title)
+
+    if subtitle != '':
+        path = os.path.join(base,char,albumartist,category,album,subtitle,title)
+    else:
+        path = os.path.join(base,char,albumartist,category,album,title)
+
     path = string.replace(path,' ','_')
 
     return path
