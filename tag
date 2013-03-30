@@ -260,6 +260,7 @@ def parsetagsfromdirpath(path):
     
     PATTERNS = [
         u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}_-_${ds}/',
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}/',        
         u'/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}_-_${ds}/',
         u'/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}/',        
         u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/${ds}/',
@@ -672,6 +673,7 @@ def checkfilepathfromtags(filepath,tags):
             sys.exit(0)
 
 def findnextrelease(path,year,album):
+    return 'A'
     if os.path.exists(path) and os.path.isdir(path):
         pattern  = u'^'+year+u'([A-Z])'
         pattern2 = pattern+'='+album.replace(' ','_')
