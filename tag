@@ -260,7 +260,7 @@ def parsetagsfromdirpath(path):
     
     PATTERNS = [
         u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}_-_${ds}/',
-        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}/',        
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}/',
         u'/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}_-_${ds}/',
         u'/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}/',        
         u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/${ds}/',
@@ -343,9 +343,16 @@ def parsetagsfromfilename(filename):
     return TAGS
 
 def parsetagsfrompath(filepath):
-    TAGS = parsetagsfromdirpath(filepath)
-    TAGS.update(parsetagsfromfilename(filepath))
-    return TAGS
+    dirtags  = parsetagsfromdirpath(filepath)
+    filetags = parsetagsfromfilename(filepath) 
+
+    if not filetags.has_key('artist'):
+        filetags['artist'] = dirtags['albumartist']
+
+    tags = dirtags;
+    tags.update(filetags)
+        
+    return tags
 
 def totals(filepath):
     tags = {}
@@ -648,6 +655,7 @@ def createfilepathfromtags(base,tags,ext):
 
     subtitle    = re.sub(r'[_ ]*/[_ ]*',r'_-_',subtitle)
     albumartist = re.sub(r'[_ ]*/[_ ]*',r'_-_',albumartist)
+    artist      = re.sub(r'[_ ]*/[_ ]*',r'_-_',artist)    
     category    = re.sub(r'[_ ]*/[_ ]*',r'_-_',category)
     album       = re.sub(r'[_ ]*/[_ ]*',r'_-_',album)
     title       = re.sub(r'[_ ]*/[_ ]*',r'_-_',title)
