@@ -106,7 +106,8 @@ def main():
         if os.path.isfile(path):
             tagfile(options,path)
         elif os.path.isdir(path):
-            for root, dirs, files in os.walk(path):
+            fsenc = sys.getfilesystemencoding()
+            for root, dirs, files in os.walk(path.encode(fsenc)):
                 files.sort()
                 for file in files:
                     tagfile(options,os.path.join(root,file))
