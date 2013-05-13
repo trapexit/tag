@@ -195,6 +195,7 @@ def tagfile(args,filepath):
             if args['exec']:
                 s = os.stat(filepath)
                 os.chmod(filepath, s.st_mode | stat.S_IWUSR)
+                add_images(audio,filepath)
                 audio.save()
                 os.chmod(filepath, s.st_mode)
     except Exception as e:
@@ -202,13 +203,27 @@ def tagfile(args,filepath):
         
     return
 
+def add_images(audio,filepath):
+    if type(audio) != mutagen.flac.FLAC:
+        return
+
+    dirname = os.path.dirname(filepath)
+    files = os.listdir(dirname)
+    for file in files:
+        filename,ext = os.path.splitext(file)
+        if ext in ['.png','.jpeg','.jpg']:
+            image = mutagen.flac.Picture()
+            fullpath = os.path.join(dirname,file)
+            with open(fullpath,'rb') as f:
+                image.data = f.read()
+            audio.add_picture(image)
+
 def cleartags(audio):
     sf = None
     if audio.has_key('source_format'):
         sf = audio['source_format']
     elif audio.has_key('sourceformat'):
         sf = audio['sourceformat']
-
     audio.clear()
     if sf:
         audio['sourceformat'] = sf
@@ -656,7 +671,6 @@ def createfilepathfromtags(base,tags,ext):
 
     subtitle    = re.sub(r'[_ ]*/[_ ]*',r'_-_',subtitle)
     albumartist = re.sub(r'[_ ]*/[_ ]*',r'_-_',albumartist)
-    artist      = re.sub(r'[_ ]*/[_ ]*',r'_-_',artist)    
     category    = re.sub(r'[_ ]*/[_ ]*',r'_-_',category)
     album       = re.sub(r'[_ ]*/[_ ]*',r'_-_',album)
     title       = re.sub(r'[_ ]*/[_ ]*',r'_-_',title)
