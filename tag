@@ -48,14 +48,14 @@ def main():
                                "hpecqwgr:s:u:a:", 
                                ["help","print","exec",
                                 "clear","query",'warn',
-                                "guess","rename=","set=",
-                                "unset=","alter=","move","debug"])
+                                "guess","copy=","set=",
+                                "unset=","alter=","delete","debug"])
 
     options = {'exec':False,'print':False,
                'clear':False,'query':False,
                'warn':False,'guess':False,
-               'rename':False,'set':{},
-               'unset':[],'alter':{},'move':False,
+               'copy':False,'set':{},
+               'unset':[],'alter':{},'delete':False,
                'debug':False}
     for o,a in opts:
         if o in ("-e","--exec"):
@@ -74,14 +74,14 @@ def main():
             options['warn'] = True
         elif o in ('-g','--guess'):
             options['guess'] = True
-        elif o in ('-m','--move'):
-            options['move'] = True
-        elif o in ('-r','--rename'):
+        elif o in ('-d','--delete'):
+            options['delete'] = True
+        elif o in ('--copy'):
             if not os.path.exists(a) or not os.path.isdir(a):
-                print "\nError: rename base path "+a+" doesn't exist\n"
+                print "\nError: copy base path "+a+" doesn't exist\n"
                 usage()
                 sys.exit(1)
-            options['rename'] = a.decode("utf-8")
+            options['copy'] = a.decode("utf-8")
         elif o in ('-s','--set'):
             key,value = a.split('=')
             key = key.lower()
@@ -145,8 +145,8 @@ def tagfile(args,filepath):
     if args['print']:
         print "v================v"
         print filepath
-    if args['rename']:
-        newpath = createfilepathfromtags(args['rename'],tags,ext)
+    if args['copy']:
+        newpath = createfilepathfromtags(args['copy'],tags,ext)
         if not newpath:
             return
         tags = parsetagsfrompath(newpath)
@@ -155,7 +155,7 @@ def tagfile(args,filepath):
         tags.update(padnumerictags(tags))                    
         checkfilepathfromtags(newpath,tags)
         if args['print']:
-            if args['move']:
+            if args['delete']:
                 word = "Move"
             else:
                 word = "Copy"
@@ -168,7 +168,7 @@ def tagfile(args,filepath):
                 if filepath != newpath:
                     if os.access(newpath,os.F_OK):
                         os.remove(newpath)
-                    if args['move']:
+                    if args['delete']:
                         shutil.move(filepath,newpath)
                     else:
                         shutil.copyfile(filepath,newpath)
@@ -808,8 +808,8 @@ def usage():
     print " -q | --query             : query discogs for additional info"
     print " -w | --warn              : warn of inconsistancies"
     print " -g | --guess             : guess tags not in expected path format"
-    print " -r | --rename=<path>     : rename to standard path"
-    print " -m | --move              : when renaming delete the original file"
+    print "    | --copy=<path>       : copy to standard path"
+    print "    | --delete            : delete once copied"
     print " -s | --set=\"KEY=VALUE\"   : sets/overwrites tag"
     print " -u | --unset=""          : unset tags"
     print " -a | --alter=\"KEY=<mod>\" : alter tags"
