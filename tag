@@ -11,19 +11,14 @@ import getopt
 import difflib
 import shutil
 
-try:
-    import discogs_client as discogs
-except ImportError:
-    pass
-
 DEBUG = False
 ALLOWEDEXTS = ['.ogg','.flac']
-IMPORTANTTAGS = ['date','album','albumartist','artist','title','tracknumber',
-                 'remixer','discsubtitle','discnumber','originalartist',
-                 'originalalbum','originaldate','totaltracks',
-                 'totaldiscs','genre','media']
-UNIQUETAGS = ['remixer','originalartist','originalalbum','originaldate',
-              'tracknumber','title']
+IMPORTANTTAGS = ['date','album','albumartist','artist','title',
+                 'tracknumber','remixer','discsubtitle',
+                 'discnumber','originalartist','originalalbum',
+                 'originaldate','totaltracks','totaldiscs']
+UNIQUETAGS = ['remixer','originalartist','originalalbum',
+              'originaldate','tracknumber','title']
 REGEXES = {
     'a0' : u"(?P<char>[^/])",
     'a'  : u"(?P<artist>[^/]+?)",
@@ -44,59 +39,12 @@ REGEXES = {
     }
 
 def main():
-    opts, args = getopt.getopt(sys.argv[1:],
-                               "hpecqwgr:s:u:a:", 
-                               ["help","print","exec",
-                                "clear","query",'warn',
-                                "guess","copy=","set=",
-                                "unset=","alter=","delete","debug"])
-
-    options = {'exec':False,'print':False,
-               'clear':False,'query':False,
-               'warn':False,'guess':False,
-               'copy':False,'set':{},
-               'unset':[],'alter':{},'delete':False,
-               'debug':False}
-    for o,a in opts:
-        if o in ("-e","--exec"):
-            options['exec'] = True
-        elif o in ('-p','--print'):
-            options['print'] = True
-        elif o in ('--debug'):
-            global DEBUG
-            options['debug'] = True
-            DEBUG=True
-        elif o in ('-c','--clear'):
-            options['clear'] = True
-        elif o in ('-q','--query'):
-            options['query'] = True
-        elif o in ('-w','--warn'):
-            options['warn'] = True
-        elif o in ('-g','--guess'):
-            options['guess'] = True
-        elif o in ('-d','--delete'):
-            options['delete'] = True
-        elif o in ('--copy'):
-            if not os.path.exists(a) or not os.path.isdir(a):
-                print "\nError: copy base path "+a+" doesn't exist\n"
-                usage()
-                sys.exit(1)
-            options['copy'] = a.decode("utf-8")
-        elif o in ('-s','--set'):
-            key,value = a.split('=')
-            key = key.lower()
-            if options['set'].has_key(key):
-                options['set'][key].append(value.decode("utf-8"))
-            else:
-                options['set'][key] = [value.decode("utf-8")]
-        elif o in ('-u','--unset'):
-            options['unset'].extend(a.split(','))
-        elif o in ('-a','--alter'):
-            key,value = a.split('=',1)
-            options['alter'][key.lower()] = value
-        elif o in ("-h","--help"):
-            usage()
-            sys.exit(1)
+    try:
+        options,args = process_options(sys.argv[1:])
+    except Exception as e:
+        print("Error: ",e)
+        usage()
+        sys.exit(1)
 
     if len(args) == 0:
         args.append(os.getcwdu())
@@ -113,6 +61,60 @@ def main():
                     tagfile(options,os.path.join(root,file))
         
     return 
+
+def process_options(args):
+    opts, args = getopt.getopt(sys.argv[1:],
+                               "hpecgr:s:u:a:", 
+                               ["help","print","exec",
+                                "clear","guess",
+                                "copy=","set=",
+                                "unset=","alter=",
+                                "delete","debug"])
+    
+    options = {'exec':False,'print':False,
+               'clear':False,'guess':False,
+               'copy':False,'debug':False,
+               'delete':False,
+               'set':{},'unset':[],'alter':{}}
+    
+    for opt,arg in opts:
+        if opt in ("-e","--exec"):
+            options['exec'] = True
+        elif opt in ('-p','--print'):
+            options['print'] = True
+        elif opt in ('--debug'):
+            global DEBUG
+            options['debug'] = True
+            DEBUG = True
+        elif opt in ('-c','--clear'):
+            options['clear'] = True
+        elif opt in ('-g','--guess'):
+            options['guess'] = True
+        elif opt in ('-d','--delete'):
+            options['delete'] = True
+        elif opt in ('--copy'):
+            if not os.path.exists(arg) or not os.path.isdir(arg):
+                print "\nError: copy base path "+arg+" doesn't exist\n"
+                usage()
+                sys.exit(1)
+            options['copy'] = arg.decode("utf-8")
+        elif opt in ('-s','--set'):
+            key,value = arg.split('=')
+            key = key.lower()
+            if options['set'].has_key(key):
+                options['set'][key].append(value.decode("utf-8"))
+            else:
+                options['set'][key] = [value.decode("utf-8")]
+        elif opt in ('-u','--unset'):
+            options['unset'].extend(arg.split(','))
+        elif opt in ('-a','--alter'):
+            key,value = arg.split('=',1)
+            options['alter'][key.lower()] = value
+        elif opt in ("-h","--help"):
+            usage()
+            sys.exit(1)
+
+    return options,args
 
 def tagfile(args,filepath):
     dirname  = os.path.dirname(filepath)
@@ -131,11 +133,6 @@ def tagfile(args,filepath):
         print "ERROR: unable to derrive tags for " + filepath
         return
 
-    if args['query']:
-        dtags = discogtags(tags)
-        if args['warn']:
-            printwarnings(tags,dtags)
-        tags.update(dtags)
     tags.update(args['set'])
     tags.update(padnumerictags(tags))
     tags.update(altertags(args['alter'],tags))
@@ -417,92 +414,6 @@ def padnumber(num, max = None):
     else:
         rv = u"%(tn)d" % {"tn":int(num)}        
     return rv
-
-discogscache = {}
-def finddiscogrelease(tags):
-    discogs.user_agent = "tagger/0.0 +http://google.com"
-    
-    if not tags.has_key('artist') and not tags.has_key('album') and not tags.has_key('albumartist'):
-        return None
-
-    if tags.has_key('albumartist'):
-        artist = tags['albumartist'][0].lower()
-    elif tags.has_key('artist'):
-        artist = tags['artist'][0].lower()
-    else:
-        artist = ''
-        
-    if tags.has_key('album'):
-        album = tags['album'][0].lower()
-    else:
-        album = ''
-
-    releases = discogscache.get(artist)
-    if not releases:
-        for query in [artist+' '+album,artist,album]:
-            try:
-                search = discogs.Search(query)
-                releases = search.results()
-                discogscache[artist] = releases
-                continue
-            except:
-                pass
-
-    possible = []
-    for release in releases:
-        if isinstance(release,discogs.MasterRelease):
-            release = release.key_release
-        if isinstance(release,discogs.Release):
-            if tags.has_key('totaltracks'):
-                if int(tags['totaltracks'][0]) != numofdiscogtracks(release.tracklist):
-                    continue
-            if tags.has_key('date') and release.data.has_key('year'):
-                if (int(release.data['year']) > int(tags['date'][0])+1 or
-                    int(release.data['year']) < int(tags['date'][0])-1):
-                    continue
-            if tags.has_key('tracknumber') and tags.has_key('title'):
-                for track in release.tracklist:
-                    try:
-                        if int(track['position']) == int(tags['tracknumber'][0]):
-                            ratio = difflib.SequenceMatcher(None,tags['title'][0],track['title']).ratio()
-                            if ratio > 0.50:
-                                possible.append(release)
-                                break
-                    except:
-                        pass
-            else:
-                possible.append(release)
-
-    MAX=(None,0)
-    for release in possible:
-        ratio = difflib.SequenceMatcher(None,album,release.title.lower()).ratio()
-        if ratio > MAX[0]:
-            MAX = (release,ratio)
-    return MAX[0]
-
-def numofdiscogtracks(LIST):
-    count = 0
-    for x in LIST:
-        if x['type'] == 'Track':
-            count += 1
-    return count
-
-def discogtags(tags):
-    dtags = {}
-    release = finddiscogrelease(tags)
-    if release:
-        if release.data.has_key('year'):
-            dtags['date'] = [unicode(release.data['year'])]
-        if release.data.has_key('genres'):
-            dtags['genre'] = release.data['genres']
-        if release.data.has_key('styles'):
-            dtags['genre'].extend(release.data['styles'])
-        if release.data.has_key('notes'):
-            dtags['comment'] = [release.data['notes']]
-        if len(release.labels) and release.labels[0].data.has_key('name'):
-            dtags['label'] = [release.labels[0].data['name'].decode('utf-8')]
-
-    return dtags
 
 def guesstags(filepath):
     tags = {}    
@@ -793,20 +704,13 @@ def LongestCommonSubstring(S1, S2 = None):
                 M[x][y] = 0
     return S1[x_longest-longest: x_longest]
 
-def printwarnings(tags,dtags):
-    if tags.has_key('date') and dtags.has_key('date'):
-        if tags['date'] != dtags['date']:
-            print "WARNING: discogs indicates the release year " + dtags['date'] + " vs. " + tags['date']
-
 def usage():
     print "usage: %(name)s [opts] [filepath] ..." % {'name':sys.argv[0]}
     print
-    print " -h | --help              : print help"
-    print " -e | --exec              : process but don't commit"
+    print " -h | --help              : print this help/usage"
+    print " -e | --exec              : execute (defaults to dry run)"
     print " -p | --print             : print info"
     print " -c | --clear             : clear tags before writing new ones"
-    print " -q | --query             : query discogs for additional info"
-    print " -w | --warn              : warn of inconsistancies"
     print " -g | --guess             : guess tags not in expected path format"
     print "    | --copy=<path>       : copy to standard path"
     print "    | --delete            : delete once copied"
