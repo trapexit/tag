@@ -40,7 +40,11 @@ REGEXES = {
 
 def main():
     try:
-        options,args = process_options(sys.argv[1:])
+        if(len(sys.argv) == 1):
+            usage()
+            sys.exit(1)
+        else:
+            options,args = process_options(sys.argv[1:])
     except Exception as e:
         print("Error: ",e)
         usage()
@@ -129,6 +133,8 @@ def tagfile(args,filepath):
         if tags:
             tags.update(totals(filepath))
 
+    sanitize_tags(tags)
+            
     if not tags:
         print "ERROR: unable to derrive tags for " + filepath
         return
@@ -285,7 +291,7 @@ def parsetagsfromdirpath(path):
     TAGS = {}
     for pattern in PATTERNS:
         reg = T(pattern).substitute(REGEXES)
-        m = re.search(reg,PATH,re.UNICODE)
+        m = regex_search(reg,PATH)
         if m:
             TAGS.update(m.groupdict())
             break
@@ -300,8 +306,8 @@ def parsetagsfromdirpath(path):
 
 def parsetagsfromfilename(filename):
     global DEBUG
-    FILEPATH=os.path.abspath(filename)
-    FILENAME=os.path.basename(FILEPATH)
+    FILEPATH = os.path.abspath(filename)
+    FILENAME = os.path.basename(FILEPATH)
     
     T = string.Template
     
@@ -328,7 +334,7 @@ def parsetagsfromfilename(filename):
     TAGS = {}
     for pattern in FILENAMEPATTERNS:
         reg = T(u'${n}='+pattern).substitute(REGEXES)
-        m = re.match(u'^'+reg+u'$',FILENAME,re.UNICODE)
+        m = regex_match(u'^'+reg+u'$',FILENAME)
         if m:
             if DEBUG:
                 print "Pattern matched:",pattern
@@ -338,7 +344,7 @@ def parsetagsfromfilename(filename):
     if not TAGS:
         for pattern in FILENAMEPATTERNS:
             reg = T(pattern).substitute(REGEXES)
-            m = re.match(u'^'+reg+u'$',FILENAME,re.UNICODE)
+            m = regex_match(u'^'+reg+u'$',FILENAME)
             if m:
                 if DEBUG:
                     print "Pattern matched:",pattern
@@ -359,7 +365,7 @@ def parsetagsfrompath(filepath):
     dirtags  = parsetagsfromdirpath(filepath)
     filetags = parsetagsfromfilename(filepath) 
 
-    if not filetags.has_key('artist'):
+    if not filetags.has_key('artist') and dirtags.has_key('albumartist'):
         filetags['artist'] = dirtags['albumartist']
 
     tags = dirtags;
@@ -384,7 +390,7 @@ def totaltracks(filepath):
         filename,ext = os.path.splitext(file)
         if ext in ALLOWEDEXTS:
             count += 1
-            match = re.match("^(\d+)=.*$",file,re.UNICODE)
+            match = regex_match("^(\d+)=.*$",file)
             if match:
                 match = int(match.groups()[0])
                 if match > max:
@@ -395,11 +401,10 @@ def totaltracks(filepath):
 
 def totaldiscs(filepath):
     dirname = os.path.dirname(filepath)
-    dirname = os.path.dirname(dirname)
     files = os.listdir(dirname)
     max = 0
     for file in files:
-        match = re.match("(Part|Side|Disc)_(\d+).*",file,re.UNICODE)
+        match = regex_search("(^|\D+)(\d)\d\d\D+",file)
         if match:
             match = int(match.groups()[1])
             if match > max:
@@ -415,6 +420,142 @@ def padnumber(num, max = None):
         rv = u"%(tn)d" % {"tn":int(num)}        
     return rv
 
+def guess_tracknumber_totaltracks(tags,filepath):
+    filepath     = os.path.abspath(filepath)
+    dirname      = os.path.dirname(filepath)
+    filename     = os.path.basename(filepath)
+    filename,ext = os.path.splitext(filename)
+
+    if not tags.has_key('tracknumber'):
+        tracknumber = regex_search('(\d+)',filename)
+        if tracknumber:
+            tags['tracknumber'] = [unicode(tn.group())]
+
+    if tags.has_key('tracknumber'):
+        split = tags['tracknumber'][0].split('/')
+        if len(split) == 2:
+            tags['tracknumber'] = [unicode(split[0])]
+            if not tags.has_key('totaltracks'):
+                tags['totaltracks'] = [unicode(split[1])]
+            else:
+                totaltracks = totaltracks(filepath)
+                tags['totaltracks'] = [unicode(totaltracks)]
+
+    if (tags.has_key('tracknumber') and not
+        tags['tracknumber'][0].isdigit()):
+        files = os.listdir(dirname)
+        files.sort()
+        totaltracks = 0
+        tracknumber = 0
+        for file in files:
+            tmpfilename,tmpext = os.path.splitext(file)
+            if tmpext == ext:
+                totaltracks += 1
+                if tmpfilename == filename:
+                    tracknumber = totaltracks
+        tags['tracknumber'] = [unicode(tracknumber)]
+        tags['totaltracks'] = [unicode(totaltracks)]
+            
+def guess_discnumber_totaldiscs(tags,filepath):
+    if (not tags.has_key('totaldiscs') and
+        tags.has_key('discnumber')):
+        split = tags['discnumber'][0].split('/')
+        if len(split) == 2:
+            tags['discnumber'] = [unicode(split[0])]
+            tags['totaldiscs'] = [unicode(split[1])]
+        else:
+            tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
+
+    if not tags.has_key('discnumber'):
+        filename = os.path.basename(filepath)
+        match = regex_search("(^|\D+)(\d)\d\d\D+",filename)
+        if match:
+            tags['discnumber'] = [int(match.groups()[1])]
+            tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
+            
+    if (tags.has_key('totaldiscs') and
+        int(tags['totaldiscs'][0]) == 1):
+        del tags['totaldiscs']
+        del tags['discnumber']
+
+def guess_albumartist_artist_album(tags,filepath):
+    if (tags.has_key('albumartist') and not
+        tags.has_key('artist')):
+        tags['artist'] = tags['albumartist']
+    elif (tags.has_key('artist') and not
+          tags.has_key('albumartist')):
+        tags['albumartist'] = tags['artist']
+
+    if (not tags.has_key('artist') or
+        not tags.has_key('album')):
+        dirname = os.path.dirname(filepath)
+        files = os.listdir(dirname)
+        files = [os.path.splitext(file)[0] for file in files]
+        lcs = LongestCommonSubstring(files)
+        if not lcs:
+            lcs = os.path.basename(dirname)
+
+        match = regex_match('(.*)[ _]-[ _](.*)',lcs)
+        if match:
+            if not tags.has_key('artist'):
+                tags['artist'] = [match.group(1).strip()]
+            if not tags.has_key('album'):
+                tags['album'] = [match.group(2).strip()]
+        else:
+            if not tags.has_key('album'):
+                tags['album'] = [lcs.strip()]
+            elif not tags.has_key('artist'):
+                tags['artist'] = [lcs.strip()]
+
+def guess_title(tags,filepath):
+    if tags.has_key('title'):
+        return
+
+    filename = os.path.basename(filepath)
+    rv = regex_search(u'(.*?)(\d+)(.*)',filename)
+    if (rv and
+        tags.has_key('tracknumber') and
+        int(rv.group(2)) == int(tags['tracknumber'][0])):
+        tags['title'] = [rv.group(3).strip()]
+    else:
+        tags['title'] = [unicode(filename.strip())]
+
+    if tags.has_key('albumartist'):
+        list = [tags['title'][0],tags['albumartist'][0]]
+        lcs = LongestCommonSubstring(list)
+        tags['title'][0] = tags['title'][0].replace(lcs,'')
+    if tags.has_key('artist'):
+        list = [tags['title'][0],tags['artist'][0]]
+        lcs = LongestCommonSubstring(list)
+        tags['title'][0] = tags['title'][0].replace(lcs,'')
+
+    tags['title'][0] = tags['title'][0].strip(' _-')
+
+def guess_category(tags,filepath):
+    if tags.has_key('category'):
+        return
+
+    if tags.has_key('album'):
+        category = scrape_category(tags['album'][0])
+    else:
+        dirname = os.path.dirname(filepath)
+        category = scrape_category(dirname)
+
+    tags['category'] = [category]
+                                
+def guess_date(tags,filepath):
+    tryfilepath = True
+    if tags.has_key('date'):
+        rv = regex_search('(\d\d\d\d)',tags['date'][0])
+        if rv:
+            tags['date'] = [rv.group(0).strip()]
+            tryfilepath  = False
+
+    if tryfilepath:
+        rv = regex_search('(\d\d\d\d)',filepath)
+        if rv:
+            tags['date'] = [rv.group(0).strip()]
+    
 def guesstags(filepath):
     tags = {}    
 
@@ -425,8 +566,9 @@ def guesstags(filepath):
 
     files = os.listdir(dirname)
     files.remove(filename+ext)    
+    files = [os.path.join(dirname,file) for file in files]
 
-    tags = scrapetagsfrom([os.path.join(dirname,file) for file in files])
+    tags = scrapetagsfrom(files)
     for tag in UNIQUETAGS:
         if tag in tags:
             del tags[tag]
@@ -435,74 +577,13 @@ def guesstags(filepath):
     pathtags = parsetagsfromdirpath(filepath)
     tags.update(pathtags)
 
-    if not tags.has_key('tracknumber'):
-        tn = re.search('(\d+)',filename,re.UNICODE)
-        if tn:
-            tags['tracknumber'] = [unicode(tn.group())]
-    if tags.has_key('tracknumber'):
-        split = tags['tracknumber'][0].split('/')
-        if len(split) == 2:
-            tags['tracknumber'] = [unicode(split[0])]
-            if not tags.has_key('totaltracks'):
-                tags['totaltracks'] = [unicode(split[1])]
-        else:
-            tags['totaltracks'] = [unicode(totaltracks(filepath))]
-        if not tags['tracknumber'][0].isdigit():
-            tags['tracknumber'] = [unicode(guesstracknumber(filepath))]
+    guess_tracknumber_totaltracks(tags,filepath)
+    guess_discnumber_totaldiscs(tags,filepath)
+    guess_albumartist_artist_album(tags,filepath)
+    guess_title(tags,filepath)
+    guess_category(tags,filepath)
+    guess_date(tags,filepath)
 
-    if not tags.has_key('totaldiscs') and tags.has_key('discnumber'):
-        split = tags['discnumber'][0].split('/')
-        if len(split) == 2:
-            tags['discnumber'] = [unicode(split[0])]
-            tags['totaldiscs'] = [unicode(split[1])]
-        else:
-            tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
-
-    if tags.has_key('totaldiscs') and int(tags['totaldiscs'][0]) == 1:
-        del tags['totaldiscs']
-        del tags['discnumber']
-
-    if tags.has_key('albumartist') and not tags.has_key('artist'):
-        tags['artist'] = tags['albumartist']
-    elif not tags.has_key('albumartist') and tags.has_key('artist'):
-        tags['albumartist'] = tags['artist']
-            
-    if not tags.has_key('artist') or not tags.has_key('album'):
-        lcs = LongestCommonSubstring([os.path.splitext(file)[0] for file in files])
-        if not lcs:
-           lcs = os.path.basename(dirname)
-        
-        match = re.match('(.*)[ _]-[ _](.*)',lcs,re.UNICODE)
-        if match:
-            if not tags.has_key('artist'):
-                tags['artist'] = [match.group(1).strip()]
-            if not tags.has_key('album'):
-                tags['album'] = [match.group(2).strip()]
-        else:
-            if not tags.has_key('artist'):
-                tags['artist'] = [lcs.strip()]
-            elif not tags.has_key('album'):
-                tags['album'] = [lcs.strip()]
-
-    if not tags.has_key('title'):
-        rv = re.search(u'(.*?)(\d+)(.*)',filename,re.UNICODE)
-        if rv and int(rv.group(2)) == int(tags['tracknumber'][0]):
-            tags['title'] = [rv.group(3).strip()]
-        else:
-            tags['title'] = [unicode(filename.strip())]
-#        lcs = LongestCommonSubstring(tags['title'][0],tags['albumartist'][0])
-#        tags['title'][0] = tags['title'][0].replace(lcs,'').strip(' _-')
-        tags['title'][0] = tags['title'][0].strip(' _-')
-    tags['title'][0] = tags['title'][0].strip()
-
-    if not tags.has_key('category'):
-        tags['category'] = [guesscategory(tags)]
-
-    if tags.has_key('date'):
-        rv = re.search('(\d\d\d\d)',tags['date'][0])
-        if rv:
-            tags['date'] = [rv.group(0).strip()]
-            
     return tags;
 
 def scrapetagsfrom(files):
@@ -540,20 +621,23 @@ def createfilepathfromtags(base,tags,ext):
     if tags.has_key('category'):
         category = tags['category'][0]
     else:
-        category = guesscategory(tags)
+        category = scrape_category(tags)
 
+    album = tags['album'][0]
     if tags.has_key('date'):
         date = tags['date'][0]
         if tags.has_key('release'):
             release = tags['release'][0]
         else:
             path = os.path.join(base,char,albumartist,category)
-            release = findnextrelease(path,tags['date'][0],tags['album'][0])
-        album = date+release+u"="+tags['album'][0]
+            release = findnextrelease(path,date,album)
+        album = date+release+u"="+album
     else:
         album = tags['album'][0]
 
-    if tags.has_key('originaldate') and not tags.has_key('originalartist') and not tags.has_key('originalalbum'):
+    if (tags.has_key('originaldate') and not
+        tags.has_key('originalartist') and not
+        tags.has_key('originalalbum')):
         album += u'_{'+tags['originaldate'][0]+u'}'
 
     if tags.has_key('discnumber'):
@@ -561,12 +645,13 @@ def createfilepathfromtags(base,tags,ext):
         if tags.has_key('discsubtitle'):
             subtitle += u'_-_'+tags['discsubtitle'][0]
 
+    title = tags['title'][0]
+            
     if tags.has_key('tracknumber'):
-        title = tags['tracknumber'][0].split('/')[0]+u"="+tags['title'][0]
-    else:
-        title = tags['title'][0]
+        title = tags['tracknumber'][0] + u'=' + title
 
-    if tags.has_key('artist') and albumartist != tags['artist'][0]:
+    if (tags.has_key('artist') and
+        albumartist != tags['artist'][0]):
         title += u'_['+tags['artist'][0]+']'
         
     if tags.has_key('originalartist'):
@@ -576,15 +661,17 @@ def createfilepathfromtags(base,tags,ext):
         if tags.has_key('originalalbum'):
             title += u"|"+tags['originalalbum'][0]
         title += u"}"
+
     if tags.has_key('remixer'):
         title += u"_<"+tags['remixer'][0]+u">"
+
     title += ext
 
-    subtitle    = re.sub(r'[_ ]*/[_ ]*',r'_-_',subtitle)
-    albumartist = re.sub(r'[_ ]*/[_ ]*',r'_-_',albumartist)
-    category    = re.sub(r'[_ ]*/[_ ]*',r'_-_',category)
-    album       = re.sub(r'[_ ]*/[_ ]*',r'_-_',album)
-    title       = re.sub(r'[_ ]*/[_ ]*',r'_-_',title)
+    subtitle    = regex_sub(r'[_ ]*/[_ ]*',r'_-_',subtitle)
+    albumartist = regex_sub(r'[_ ]*/[_ ]*',r'_-_',albumartist)
+    category    = regex_sub(r'[_ ]*/[_ ]*',r'_-_',category)
+    album       = regex_sub(r'[_ ]*/[_ ]*',r'_-_',album)
+    title       = regex_sub(r'[_ ]*/[_ ]*',r'_-_',title)
 
     if subtitle != '':
         path = os.path.join(base,char,albumartist,category,album,subtitle,title)
@@ -614,10 +701,10 @@ def findnextrelease(path,year,album):
         rv = 'A'
         files = os.listdir(path)
         for file in files:
-            match = re.match(pattern2,file,re.UNICODE)
+            match = regex_match(pattern2,file)
             if match:
                 return match.groups()[0]
-            match = re.match(pattern,file,re.UNICODE)
+            match = regex_match(pattern,file)
             if match:
                 match = match.groups()[0]
                 if match > rv:
@@ -626,37 +713,26 @@ def findnextrelease(path,year,album):
     else:
         return 'A'
 
-def guesscategory(tags):
-    album = tags.get('album',[''])[0].lower()
-    if re.search('[\s(]*single[)\s]*',album):
+def scrape_category(string):
+    album = string.lower()
+    if regex_search('[\s(]*single[)\s]*',album):
         return u'Single'
-    elif re.search('[\s(]*ep[)\s]*',album):
+    elif regex_search('[\s(]*ep[)\s]*',album):
         return u'EP'
-    elif re.search('[\s(]*demo[)\s]*',album):
+    elif regex_search('[\s(]*demo[)\s]*',album):
         return u'Demo'
-    elif re.search('[\s(]*live[)\s]*',album):
+    elif regex_search('[\s(]*live[)\s]*',album):
         return u'Live'
-    elif re.search('[\s(]*remix[)\s]*',album):
+    elif regex_search('[\s(]*remix[)\s]*',album):
         return u'Remix'
-    elif re.search('[\s(]*promo[)\s]*',album):
+    elif regex_search('[\s(]*promo[)\s]*',album):
         return u'Promo'
+    elif regex_search('[\s(]*ost[)\s]*',album):
+        return u'Soundtrack'
+    elif regex_search('[\s(]*soundtrack[)\s]*',album):
+        return u'Soundtrack'        
     else:
         return u'Album'
-
-def guesstracknumber(filepath):
-    dirname = os.path.dirname(filepath)
-    basename = os.path.basename(filepath)
-    filename,ext = os.path.splitext(basename)
-    files = os.listdir(dirname)
-    files.sort()
-    count = 0
-    for file in files:
-        tmpfilename,tmpext = os.path.splitext(file)
-        if tmpext == ext:
-            count += 1
-            if tmpfilename == filename:
-                break
-    return count
 
 # "album=t|u|l|r:old:new "
 def altertags(alters,tags):
@@ -684,6 +760,28 @@ def altertags(alters,tags):
                 newtags[key].append(tagvalue)
     return newtags
 
+def sanitize_tags(tags):
+    if tags.has_key('date'):
+        rv = regex_search('(\d\d\d\d)',tags['date'][0])
+        if rv:
+            tags['date'] = [rv.group(0).strip()]
+
+    if tags.has_key('tracknumber'):
+        split = tags['tracknumber'][0].split('/')
+        if len(split) >= 2:
+            tags['tracknumber'] = [unicode(split[0])]
+            if not tags.has_key('totaltracks'):
+                tags['totaltracks'] = [unicode(split(1))]
+
+def regex_sub(frompattern,topattern,string):
+    return re.sub(frompattern,topattern,string,flags=re.UNICODE)
+                
+def regex_search(pattern,string):
+    return re.search(pattern,string,re.UNICODE)
+
+def regex_match(pattern,string):
+    return re.match(pattern,string,re.UNICODE)
+                       
 def LongestCommonSubstring(S1, S2 = None):
     if type(S1) == type([]) and S2 == None:
         lcs = S1[0]
