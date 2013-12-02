@@ -1,8 +1,10 @@
 #!/usr/bin/python
+# -*- coding: utf-8 -*-
 # http://musicbrainz.org/doc/MusicBrainz_Picard/Tags/Mapping
 
 import mutagen
 import string
+import math
 import os
 import stat
 import sys
@@ -20,22 +22,22 @@ IMPORTANTTAGS = ['date','album','albumartist','artist','title',
 UNIQUETAGS = ['remixer','originalartist','originalalbum',
               'originaldate','tracknumber','title']
 REGEXES = {
-    'a0' : u"(?P<char>[^/])",
-    'a'  : u"(?P<artist>[^/]+?)",
-    'aa' : u"(?P<albumartist>[^/]+?)",
-    'oa' : u"(?P<originalartist>[^/]+?)",
-    'b'  : u"(?P<album>[^/]+?)",
-    'ob' : u"(?P<originalalbum>[^/]+?)",
-    't'  : u"(?P<title>[^/]+?)",
-    'y'  : u"(?P<date>\d\d\d\d)",
-    'oy' : u"(?P<originaldate>\d\d\d\d)",
-    'd'  : u"(?P<discnumber>\d+)",
-    'c'  : u"(?P<category>[^/]+?)",
-    'r'  : u"(?P<release>[A-Z])",
-    'n'  : u"(?P<tracknumber>\d+)",
-    'ds' : u"(?P<discsubtitle>[^/]+?)",
-    'e'  : u"(?P<ext>\.[^\.]+?)",
-    'rm' : u"(?P<remixer>[^/]+?)"
+    'a0' : u'(?P<char>[^/])',
+    'a'  : u'(?P<artist>[^/]+?)',
+    'aa' : u'(?P<albumartist>[^/]+?)',
+    'oa' : u'(?P<originalartist>[^/]+?)',
+    'b'  : u'(?P<album>[^/]+?)',
+    'ob' : u'(?P<originalalbum>[^/]+?)',
+    't'  : u'(?P<title>[^/]+?)',
+    'y'  : u'(?P<date>\d\d\d\d)',
+    'oy' : u'(?P<originaldate>\d\d\d\d)',
+    'd'  : u'(?P<discnumber>\d+)',
+    'c'  : u'(?P<category>[^/]+?)',
+    'r'  : u'(?P<release>[A-Z])',
+    'n'  : u'(?P<tracknumber>\d+)',
+    'ds' : u'(?P<discsubtitle>[^/]+?)',
+    'e'  : u'(?P<ext>\.[^\.]+?)',
+    'rm' : u'(?P<remixer>[^/]+?)'
     }
 
 def main():
@@ -71,9 +73,9 @@ def process_options(args):
                                "hpecgr:s:u:a:", 
                                ["help","print","exec",
                                 "clear","guess",
-                                "copy=","set=",
-                                "unset=","alter=",
-                                "delete","debug"])
+                                'copy=','set=',
+                                'unset=','alter=',
+                                'delete','debug'])
     
     options = {'exec':False,'print':False,
                'clear':False,'guess':False,
@@ -82,7 +84,7 @@ def process_options(args):
                'set':{},'unset':[],'alter':{}}
     
     for opt,arg in opts:
-        if opt in ("-e","--exec"):
+        if opt in ('-e','--exec'):
             options['exec'] = True
         elif opt in ('-p','--print'):
             options['print'] = True
@@ -98,23 +100,23 @@ def process_options(args):
             options['delete'] = True
         elif opt in ('--copy'):
             if not os.path.exists(arg) or not os.path.isdir(arg):
-                print "\nError: copy base path "+arg+" doesn't exist\n"
+                print '\nError: copy base path '+arg+' doesn\'t exist\n'
                 usage()
                 sys.exit(1)
-            options['copy'] = arg.decode("utf-8")
+            options['copy'] = arg.decode('utf-8')
         elif opt in ('-s','--set'):
             key,value = arg.split('=')
             key = key.lower()
             if options['set'].has_key(key):
-                options['set'][key].append(value.decode("utf-8"))
+                options['set'][key].append(value.decode('utf-8'))
             else:
-                options['set'][key] = [value.decode("utf-8")]
+                options['set'][key] = [value.decode('utf-8')]
         elif opt in ('-u','--unset'):
             options['unset'].extend(arg.split(','))
         elif opt in ('-a','--alter'):
             key,value = arg.split('=',1)
             options['alter'][key.lower()] = value
-        elif opt in ("-h","--help"):
+        elif opt in ('-h','--help'):
             usage()
             sys.exit(1)
 
@@ -136,7 +138,7 @@ def tagfile(args,filepath):
     sanitize_tags(tags)
             
     if not tags:
-        print "ERROR: unable to derrive tags for " + filepath
+        print 'ERROR: unable to derrive tags for ' + filepath
         return
 
     tags.update(args['set'])
@@ -152,17 +154,16 @@ def tagfile(args,filepath):
         newpath = createfilepathfromtags(args['copy'],tags,ext)
         if not newpath:
             return
-        tags = parsetagsfrompath(newpath)
+
         if tags:
             tags.update(totals(filepath))
         tags.update(padnumerictags(tags))                    
-        checkfilepathfromtags(newpath,tags)
         if args['print']:
             if args['delete']:
-                word = "Move"
+                word = u'Move'
             else:
-                word = "Copy"
-            print word+ " to: " + newpath
+                word = u'Copy'
+            print word + u' to: ' + newpath
         if args['exec']:
             try:
                 dirname = os.path.dirname(newpath)
@@ -247,18 +248,20 @@ def settags(audio,tags):
 def padnumerictags(tags):
     if tags.has_key('tracknumber'):
         if tags.has_key('totaltracks'):
-            tags['tracknumber'] = [padnumber(tags['tracknumber'][0],
-                                             tags['totaltracks'][0])]
+            tags['tracknumber'] = [padnumber(tags['tracknumber'][0],tags['totaltracks'][0],2)]
         else:
-            tags['tracknumber'] = [padnumber(tags['tracknumber'][0])]
+            tags['tracknumber'] = [padnumber(tags['tracknumber'][0],minpadding=2)]
+
     if tags.has_key('totaltracks'):
-        tags['totaltracks'] = [padnumber(tags['totaltracks'][0])]
+        tags['totaltracks'] = [padnumber(tags['totaltracks'][0],minpadding=2)]
+
     if tags.has_key('discnumber'):
         if tags.has_key('totaldiscs'):
             tags['discnumber'] = [padnumber(tags['discnumber'][0],
                                             tags['totaldiscs'][0])]
         else:
             tags['discnumber'] = [padnumber(tags['discnumber'][0])]
+
     if tags.has_key('totaldiscs'):
         tags['totaldiscs'] = [padnumber(tags['totaldiscs'][0])]
 
@@ -278,14 +281,13 @@ def parsetagsfromdirpath(path):
     T = string.Template
     
     PATTERNS = [
-        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}_-_${ds}/',
-        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/(Part|Side|Disc)_${d}/',
-        u'/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}_-_${ds}/',
-        u'/${a0}/${aa}/${c}/${y}${r}=${b}/(Part|Side|Disc)_${d}/',        
-        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/${ds}/',
-        u'/${a0}/${aa}/${c}/${y}${r}=${b}/${ds}/',
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\[${ds}\]_\{${oy}\}/',
         u'/${a0}/${aa}/${c}/${y}${r}=${b}_\{${oy}\}/',
+        u'/${a0}/${aa}/${c}/${y}${r}=${b}_\[${ds}\]/',        
         u'/${a0}/${aa}/${c}/${y}${r}=${b}/',
+        u'/${a0}/${aa}/${c}/${b}_\[${ds}\]_\{${oy}\}/',
+        u'/${a0}/${aa}/${c}/${b}_\{${oy}\}/',
+        u'/${a0}/${aa}/${c}/${b}_\[${ds}\]/',        
         u'/${a0}/${aa}/${c}/${b}/']
     
     TAGS = {}
@@ -332,6 +334,15 @@ def parsetagsfromfilename(filename):
         u'${t}${e}']
     
     TAGS = {}
+    for pattern in FILENAMEPATTERNS:
+        reg = T(u'${d}.${n}='+pattern).substitute(REGEXES)
+        m = regex_match(u'^'+reg+u'$',FILENAME)
+        if m:
+            if DEBUG:
+                print "Pattern matched:",pattern
+            TAGS = m.groupdict()
+            break
+            
     for pattern in FILENAMEPATTERNS:
         reg = T(u'${n}='+pattern).substitute(REGEXES)
         m = regex_match(u'^'+reg+u'$',FILENAME)
@@ -411,14 +422,14 @@ def totaldiscs(filepath):
                 max = match
     return max
 
-def padnumber(num, max = None):
-    if max == None or int(num) < 100:
-        rv = u"%(tn)02d" % {"tn":int(num)}
-    elif int(max) > 100:
-        rv = u"%(tn)03d" % {"tn":int(num)}
-    else:
-        rv = u"%(tn)d" % {"tn":int(num)}        
-    return rv
+def padnumber(num, maxnum = 100, minpadding = None):
+    if int(maxnum) <= 0:
+        maxnum = 1
+    padding = math.log(float(maxnum),10)
+    if padding < minpadding:
+        padding = minpadding
+
+    return unicode(int(num)).zfill(int(padding))
 
 def guess_tracknumber_totaltracks(tags,filepath):
     filepath     = os.path.abspath(filepath)
@@ -610,7 +621,6 @@ def createfilepathfromtags(base,tags,ext):
             print "Error with renaming: necessary tag " + KEY.upper() + " not present"
             return None
 
-    subtitle = ''
     albumartist = tags['albumartist'][0]
     split = albumartist.split()
     if split[0].lower() in ['a','the']:
@@ -631,52 +641,47 @@ def createfilepathfromtags(base,tags,ext):
         else:
             path = os.path.join(base,char,albumartist,category)
             release = findnextrelease(path,date,album)
-        album = date+release+u"="+album
+        album = date + release + u'=' + album
     else:
         album = tags['album'][0]
 
+    if tags.has_key('discsubtitle'):
+        album += u'_[' + tags['discsubtitle'][0] + u']'
+        
     if (tags.has_key('originaldate') and not
         tags.has_key('originalartist') and not
         tags.has_key('originalalbum')):
         album += u'_{'+tags['originaldate'][0]+u'}'
 
-    if tags.has_key('discnumber'):
-        subtitle = u'Disc_'+tags['discnumber'][0]
-        if tags.has_key('discsubtitle'):
-            subtitle += u'_-_'+tags['discsubtitle'][0]
-
-    title = tags['title'][0]
-            
+    filename = tags['title'][0]
     if tags.has_key('tracknumber'):
-        title = tags['tracknumber'][0] + u'=' + title
+        filename = tags['tracknumber'][0] + u'=' + filename
+        if tags.has_key('discnumber'):        
+            filename = tags['discnumber'][0] + u'.' + filename
 
     if (tags.has_key('artist') and
         albumartist != tags['artist'][0]):
-        title += u'_['+tags['artist'][0]+']'
+        filename += u'_[' + tags['artist'][0] + u']'
         
     if tags.has_key('originalartist'):
-        title += u"_{"+tags['originalartist'][0]
+        filename += u'_{' + tags['originalartist'][0]
         if tags.has_key('originaldate'):
-            title += u"|"+tags['originaldate'][0]
+            filename += u'|' + tags['originaldate'][0]
         if tags.has_key('originalalbum'):
-            title += u"|"+tags['originalalbum'][0]
-        title += u"}"
+            filename += u'|' + tags['originalalbum'][0]
+        filename += u'}'
 
     if tags.has_key('remixer'):
-        title += u"_<"+tags['remixer'][0]+u">"
+        filename += u'_<' + tags['remixer'][0] +u'>'
 
-    title += ext
+    filename += ext
 
-    subtitle    = regex_sub(r'[_ ]*/[_ ]*',r'_-_',subtitle)
     albumartist = regex_sub(r'[_ ]*/[_ ]*',r'_-_',albumartist)
     category    = regex_sub(r'[_ ]*/[_ ]*',r'_-_',category)
     album       = regex_sub(r'[_ ]*/[_ ]*',r'_-_',album)
-    title       = regex_sub(r'[_ ]*/[_ ]*',r'_-_',title)
+    filename    = regex_sub(r'[_ ]*/[_ ]*',r'_-_',filename)
 
-    if subtitle != '':
-        path = os.path.join(base,char,albumartist,category,album,subtitle,title)
-    else:
-        path = os.path.join(base,char,albumartist,category,album,title)
+    path = os.path.join(base,char,albumartist,category,album,filename)
 
     path = string.replace(path,' ','_')
 

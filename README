@@ -5,16 +5,11 @@ Tagging from filepath.
 <char>  ::= <alpha> | <digit> | "_"
 <string> ::= * <char>
 
-<filepath> ::= <path> "/" <filename>
+<artist> ::= <albumartist>
 
 <albumartist> ::= <string>
 
-<album> ::= [ <year> <alpha> "=" ] <albumtitle> [ "_{" <originalyear> "}" ]
-
-<part> ::= "Disc_" <digit> [ "_-_" <subtitle> ] |
-           "Part_" <digit> [ "_-_" <subtitle> ]
-
-<subtitle> ::= <string>
+<discsubtitle> ::= <string>
 
 <year> ::= 4*<digit>
 
@@ -22,22 +17,35 @@ Tagging from filepath.
 
 <originalalbum> ::= <string>
 
-<originalyear> ::= <year>                
+<originalyear> ::= <year>
+               
+<remixer> ::= <string>
 
-<path> ::= <char> "/" <albumartist> "/" <category> "/" <album> "/" |
-           <char> "/" <albumartist> "/" <category> "/" <album> "/" <part>
-
-<original> ::= "_{" <originalartist> "|" <originalyear> "|" <originalalbum> "}" |
-               "_{" <originalartist> "|" <originalyear> "}" |
-               "_{" <originalartist> "|" <originalalbum> "}" |
-	       "_{" <originalyear> "}"
-
-<remixer> ::= "_<" <string> ">"
-
-<artist> ::= "_[" <albumartist> "]"
+<album> ::= [ <year> <alpha> "=" ] <albumtitle> [ "_[" <discsubtitle> "]" ] [ "_{" <originalyear> "}" ]
 
 <tracknumber> ::= *<digit>
 
-<filename> ::= [ <tracknumber> "=" ] <title> [ <artist> [ <original> [ <remixer> ] ] ] "." <ext>
+<discnumber> ::= *<digit>
 
 <ext> ::= <string>
+
+<path> ::= <char> "/" <albumartist> "/" <category> "/" <album>
+
+<artist+> ::= "_[" <artist> "]"
+
+<original+> ::= "_{" <originalartist> "|" <originalyear> "|" <originalalbum> "}" |
+                "_{" <originalartist> "|" <originalyear> "}" |
+                "_{" <originalartist> "|" <originalalbum> "}" |
+	        "_{" <originalyear> "}"
+
+<remixer+> ::= "_<" <remixer> ">"
+
+<prefix> ::= [ <discnumber> "." ] <tracknumber> "="
+
+<filename> ::= [ <prefix> ] <title> [ <artist+> [ <original+> [ <remixer+> ] ] ] "." <ext>
+
+<filepath> ::= <path> "/" <filename>
+
+
+
+
