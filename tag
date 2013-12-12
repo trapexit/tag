@@ -55,6 +55,21 @@ def main():
     if len(args) == 0:
         args.append(os.getcwdu())
 
+    target = {}
+    fsenc = sys.getfilesystemencoding()
+    for path in args:
+        path = os.path.abspath(path)
+        if os.path.isdir(path):
+            target[path] = path
+            for root,dirs,files in os.walk(path.encode(fsenc)):
+                for dir in dirs:
+                    fullpath = os.path.join(root,dir)
+                    target[fullpath] = fullpath
+        elif os.path.isfile(path):
+            target[path] = os.path.dirname(path)
+        else:
+            pass
+
     for path in args:
         path = os.path.abspath(path)
         if os.path.isfile(path):
@@ -148,8 +163,7 @@ def tagfile(args,filepath):
         if tags.has_key(value):
             del tags[value]
     if args['print']:
-        print "v================v"
-        print filepath
+        print u'From:',filepath
     if args['copy']:
         newpath = createfilepathfromtags(args['copy'],tags,ext)
         if not newpath:
@@ -159,11 +173,7 @@ def tagfile(args,filepath):
             tags.update(totals(filepath))
         tags.update(padnumerictags(tags))                    
         if args['print']:
-            if args['delete']:
-                word = u'Move'
-            else:
-                word = u'Copy'
-            print word + u' to: ' + newpath
+            print u'To:',newpath
         if args['exec']:
             try:
                 dirname = os.path.dirname(newpath)
@@ -176,30 +186,26 @@ def tagfile(args,filepath):
                         shutil.move(filepath,newpath)
                     else:
                         shutil.copyfile(filepath,newpath)
+                    copy_image(filepath,newpath)
                     filepath = newpath
             except Exception as e:
                 if not os.path.exists(newpath):
-                    print "Error creating path: " + os.path.dirname(newpath)
+                    print "Error creating path:",os.path.dirname(newpath)
                 else:
                     print "Error:",e
                 return
     try:
         audio = mutagen.File(filepath)
         if audio != None:
-            if args['clear']:
-                cleartags(audio)
-            settags(audio,tags)
+            apply_tags(audio,tags,args['clear'])
             if args['print']:
-                for key in audio:
-                    values = audio[key]
-                    for value in values:
-                        print key.upper(),'=',value
-                print "^================^"
+                print_tags(tags)
+                print ''
 
             if args['exec']:
                 s = os.stat(filepath)
                 os.chmod(filepath, s.st_mode | stat.S_IWUSR)
-                add_images(audio,filepath)
+                add_images_from_dir(audio)
                 audio.save()
                 os.chmod(filepath, s.st_mode)
     except Exception as e:
@@ -207,20 +213,70 @@ def tagfile(args,filepath):
         
     return
 
-def add_images(audio,filepath):
+def apply_tags(audio,tags,clear):
+    if audio == None:
+        return
+
+    if clear:
+        cleartags(audio)
+    set_tags(audio,tags)
+
+def print_tags(tags):
+    maxlen = max([len(key) for key,value in tags.items()])
+    for key,values in sorted(tags.items()):
+        for value in values:
+            print '%-*s = %s' % (maxlen,key.upper(),value)
+
+def copy_image(oldpath,newpath):
+    if not os.path.isdir(oldpath):
+        oldpath = os.path.dirname(oldpath)
+    if not os.path.isdir(newpath):
+        newpath = os.path.dirname(newpath)
+
+    bestfile = None
+    files = {file.lower():file for file in os.listdir(oldpath)}
+    for name in ['cover','folder','front']:
+        for ext in ['.png','.jpg','.jpeg','.gif']:
+            if name+ext in files:
+                bestfile = files[name+ext]
+
+    if bestfile == None:
+        for lfile,file in files.items():
+            filename,ext = os.path.splitext(file)
+            ext = ext.lower()
+            if ext in ['.png','.jpg','.jpeg','.gif']:
+                bestfile = file
+                break
+
+    if bestfile:
+        filename,ext = os.path.splitext(bestfile)
+        source = os.path.join(oldpath,bestfile)
+        target = os.path.join(newpath,'cover'+ext.lower())
+        shutil.copyfile(source,target)
+        return target
+
+    return None
+
+def add_images_from_dir(audio):
     if type(audio) != mutagen.flac.FLAC:
         return
 
-    dirname = os.path.dirname(filepath)
+    filepath = os.path.abspath(audio.filename)
+    dirname  = os.path.dirname(filepath)
+
     files = os.listdir(dirname)
-    for file in files:
-        filename,ext = os.path.splitext(file)
-        if ext in ['.png','.jpeg','.jpg']:
-            image = mutagen.flac.Picture()
-            fullpath = os.path.join(dirname,file)
-            with open(fullpath,'rb') as f:
-                image.data = f.read()
-            audio.add_picture(image)
+    for ext in ['.png','.jpeg','.jpg','.gif']:
+        if 'cover'+ext in files:
+            imagepath = os.path.join(dirname,'cover'+ext)
+            add_image(audio,imagepath)
+            return
+    
+def add_image(audio,imagepath):
+    image = mutagen.flac.Picture()
+    with open(imagepath,'rb') as f:
+        image.data = f.read()
+        audio.add_picture(image)
+        f.close()
 
 def cleartags(audio):
     sf = None
@@ -232,7 +288,7 @@ def cleartags(audio):
     if sf:
         audio['sourceformat'] = sf
 
-def settags(audio,tags):
+def set_tags(audio,tags):
     if audio.has_key('source_format'):
         tags['sourceformat'] = audio['source_format']
     elif audio.has_key('sourceformat'):
@@ -255,15 +311,15 @@ def padnumerictags(tags):
     if tags.has_key('totaltracks'):
         tags['totaltracks'] = [padnumber(tags['totaltracks'][0],minpadding=2)]
 
-    if tags.has_key('discnumber'):
-        if tags.has_key('totaldiscs'):
-            tags['discnumber'] = [padnumber(tags['discnumber'][0],
-                                            tags['totaldiscs'][0])]
-        else:
-            tags['discnumber'] = [padnumber(tags['discnumber'][0])]
+#    if tags.has_key('discnumber'):
+#        if tags.has_key('totaldiscs'):
+#            tags['discnumber'] = [padnumber(tags['discnumber'][0],
+#                                            tags['totaldiscs'][0])]
+#        else:
+#            tags['discnumber'] = [padnumber(tags['discnumber'][0])]
 
-    if tags.has_key('totaldiscs'):
-        tags['totaldiscs'] = [padnumber(tags['totaldiscs'][0])]
+#    if tags.has_key('totaldiscs'):
+#        tags['totaldiscs'] = [padnumber(tags['totaldiscs'][0])]
 
     return tags
 
@@ -431,16 +487,32 @@ def padnumber(num, maxnum = 100, minpadding = None):
 
     return unicode(int(num)).zfill(int(padding))
 
+def guess_tracknumber(filename):
+    nums = regex_findall('\d+',filename)
+    values = {}
+    for num in nums:
+        values[len(num)] = num
+
+    if 2 in values:
+        return unicode(values[2])
+    if 3 in values:
+        return unicode(values[3][1:])
+    if 1 in values:
+        return unicode(values[1])
+    return None
+
 def guess_tracknumber_totaltracks(tags,filepath):
     filepath     = os.path.abspath(filepath)
     dirname      = os.path.dirname(filepath)
     filename     = os.path.basename(filepath)
     filename,ext = os.path.splitext(filename)
 
-    if not tags.has_key('tracknumber'):
-        tracknumber = regex_search('(\d+)',filename)
+    if (not tags.has_key('tracknumber') or
+        int(tags['tracknumber'][0]) == 0 or
+        not tags['tracknumber'][0]) :
+        tracknumber = guess_tracknumber(filename)
         if tracknumber:
-            tags['tracknumber'] = [unicode(tn.group())]
+            tags['tracknumber'] = [tracknumber]
 
     if tags.has_key('tracknumber'):
         split = tags['tracknumber'][0].split('/')
@@ -474,15 +546,17 @@ def guess_discnumber_totaldiscs(tags,filepath):
         if len(split) == 2:
             tags['discnumber'] = [unicode(split[0])]
             tags['totaldiscs'] = [unicode(split[1])]
-        else:
-            tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
 
+    if not tags.has_key('discnumber'):
+        match = regex_search('[cC][dD](\d)',filepath)
+        if match:
+            tags['discnumber'] = [unicode(match.group(1))]
+            
     if not tags.has_key('discnumber'):
         filename = os.path.basename(filepath)
         match = regex_search("(^|\D+)(\d)\d\d\D+",filename)
         if match:
-            tags['discnumber'] = [int(match.groups()[1])]
-            tags['totaldiscs'] = [unicode(totaldiscs(filepath))]
+            tags['discnumber'] = [unicode(match.group(1))]
             
     if (tags.has_key('totaldiscs') and
         int(tags['totaldiscs'][0]) == 1):
@@ -500,47 +574,49 @@ def guess_albumartist_artist_album(tags,filepath):
     if (not tags.has_key('artist') or
         not tags.has_key('album')):
         dirname = os.path.dirname(filepath)
+        ext = os.path.splitext(filepath)[1]        
         files = os.listdir(dirname)
-        files = [os.path.splitext(file)[0] for file in files]
+        files = [os.path.splitext(file)[0]
+                 for file in files
+                 if os.path.splitext(file)[1] == ext]
         lcs = LongestCommonSubstring(files)
         if not lcs:
             lcs = os.path.basename(dirname)
 
-        match = regex_match('(.*)[ _]-[ _](.*)',lcs)
-        if match:
-            if not tags.has_key('artist'):
-                tags['artist'] = [match.group(1).strip()]
-            if not tags.has_key('album'):
-                tags['album'] = [match.group(2).strip()]
-        else:
-            if not tags.has_key('album'):
-                tags['album'] = [lcs.strip()]
-            elif not tags.has_key('artist'):
-                tags['artist'] = [lcs.strip()]
+        split = clean_filename(lcs)
+        if not tags.has_key('artist') and split:
+            tags['artist'] = [split.pop(0)]
+        if not tags.has_key('album') and split:
+            tags['album'] = [split.pop(0)]
+
+    if not tags.has_key('albumartist'):
+        tags['albumartist'] = tags['artist']
 
 def guess_title(tags,filepath):
     if tags.has_key('title'):
         return
 
-    filename = os.path.basename(filepath)
-    rv = regex_search(u'(.*?)(\d+)(.*)',filename)
-    if (rv and
-        tags.has_key('tracknumber') and
-        int(rv.group(2)) == int(tags['tracknumber'][0])):
-        tags['title'] = [rv.group(3).strip()]
-    else:
-        tags['title'] = [unicode(filename.strip())]
+    filename     = os.path.basename(filepath)
+    filename,ext = os.path.splitext(filename)
+
+    title = filename
 
     if tags.has_key('albumartist'):
-        list = [tags['title'][0],tags['albumartist'][0]]
+        list = [title,tags['albumartist'][0]]
         lcs = LongestCommonSubstring(list)
-        tags['title'][0] = tags['title'][0].replace(lcs,'')
+        title = title.replace(lcs,'')
     if tags.has_key('artist'):
-        list = [tags['title'][0],tags['artist'][0]]
+        list = [title,tags['artist'][0]]
         lcs = LongestCommonSubstring(list)
-        tags['title'][0] = tags['title'][0].replace(lcs,'')
+        title = title.replace(lcs,'')
+    
+    if tags.has_key('tracknumber'):
+        tn = tags['tracknumber'][0]
+        rv = regex_search(u'.*?'+tn+'(.*)',filename)
+        if rv:
+            title = rv.group(1)
 
-    tags['title'][0] = tags['title'][0].strip(' _-')
+    tags['title'] = [title.strip(' _-')]
 
 def guess_category(tags,filepath):
     if tags.has_key('category'):
@@ -559,13 +635,13 @@ def guess_date(tags,filepath):
     if tags.has_key('date'):
         rv = regex_search('(\d\d\d\d)',tags['date'][0])
         if rv:
-            tags['date'] = [rv.group(0).strip()]
+            tags['date'] = [rv.group(1).strip()]
             tryfilepath  = False
 
     if tryfilepath:
         rv = regex_search('(\d\d\d\d)',filepath)
         if rv:
-            tags['date'] = [rv.group(0).strip()]
+            tags['date'] = [rv.group(1).strip()]
     
 def guesstags(filepath):
     tags = {}    
@@ -608,7 +684,9 @@ def scrapetagsfrom(files):
             if not audio:
                 continue
             for tag in IMPORTANTTAGS:
-                if not tags.has_key(tag) and audio.has_key(tag):
+                if (not tags.has_key(tag) and
+                    audio.has_key(tag)    and
+                    audio[tag][0]):
                     tags[tag] = audio[tag]
         except:
             pass
@@ -718,6 +796,12 @@ def findnextrelease(path,year,album):
     else:
         return 'A'
 
+def clean_filename(filename):
+    filename = re.sub('[^\w\s\'\,\.\!\?]+','|',filename)
+    filename = re.sub('\s*\|\s*','|',filename)
+    filename = re.sub('\|+','|',filename)
+    return [v for v in filename.split('|') if v]
+        
 def scrape_category(string):
     album = string.lower()
     if regex_search('[\s(]*single[)\s]*',album):
@@ -786,6 +870,9 @@ def regex_search(pattern,string):
 
 def regex_match(pattern,string):
     return re.match(pattern,string,re.UNICODE)
+
+def regex_findall(pattern,string):
+    return re.findall(pattern,string,re.UNICODE)
                        
 def LongestCommonSubstring(S1, S2 = None):
     if type(S1) == type([]) and S2 == None:
