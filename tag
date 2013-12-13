@@ -12,6 +12,8 @@ import re
 import getopt
 import difflib
 import shutil
+from collections import defaultdict
+
 
 DEBUG = False
 ALLOWEDEXTS = ['.ogg','.flac']
@@ -96,7 +98,7 @@ def process_options(args):
                'clear':False,'guess':False,
                'copy':False,'debug':False,
                'delete':False,
-               'set':{},'unset':[],'alter':{}}
+               'set':{},'unset':[],'alter':defaultdict(list)}
     
     for opt,arg in opts:
         if opt in ('-e','--exec'):
@@ -130,7 +132,7 @@ def process_options(args):
             options['unset'].extend(arg.split(','))
         elif opt in ('-a','--alter'):
             key,value = arg.split('=',1)
-            options['alter'][key.lower()] = value
+            options['alter'][key.lower()].append(value)
         elif opt in ('-h','--help'):
             usage()
             sys.exit(1)
@@ -823,14 +825,12 @@ def scrape_category(string):
     else:
         return u'Album'
 
-# "album=t|u|l|r:old:new "
 def altertags(alters,tags):
     newtags = {}
-    for key in alters:
+    for key,ops in alters.items():
         if tags.has_key(key):
             newtags[key] = []
             for tagvalue in tags[key]:
-                ops = alters[key].split('|')
                 for op in ops:
                     if op == 't':
                         tagvalue = tagvalue.title()
@@ -843,7 +843,7 @@ def altertags(alters,tags):
                     elif op == 's':
                         tagvalue = tagvalue.swapcase()
                     elif op[0] == 'r':
-                        split = op.split(':')
+                        split = op.split(op[1])
                         if len(split) == 3:
                             tagvalue = tagvalue.replace(split[1],split[2])
                 newtags[key].append(tagvalue)
@@ -907,13 +907,14 @@ def usage():
     print " -s | --set=\"KEY=VALUE\"   : sets/overwrites tag"
     print " -u | --unset=""          : unset tags"
     print " -a | --alter=\"KEY=<mod>\" : alter tags"
-    print "  <mod> = \"t|c|l|u|s|r:old:new\""
+    print "  <mod> = "
     print "  t = title capitalization"
     print "  c = capitalize first letter"
     print "  l = lowercase"
     print "  u = uppercase"
     print "  s = swapcase"
-    print "  r = replace:oldvalue:newvalue"
+    print "  r<sep>oldvalue<sep>newvalue = replace 'oldvalue' with 'newvalue'"
+    print "  <sep> is arbitrary, the char after 'r' is the token to split"
     print
 
 if __name__ == "__main__":
