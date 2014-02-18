@@ -142,7 +142,7 @@ def process_options(args):
 def tagfile(args,filepath):
     dirname  = os.path.dirname(filepath)
     filename,ext = os.path.splitext(filepath)
-    if not ext in ALLOWEDEXTS:
+    if not ext.lower() in ALLOWEDEXTS:
         return
 
     if args['guess']:
@@ -195,7 +195,6 @@ def tagfile(args,filepath):
                     print "Error creating path:",os.path.dirname(newpath)
                 else:
                     print "Error:",e
-                return
     try:
         audio = mutagen.File(filepath)
         if audio != None:
@@ -254,7 +253,10 @@ def copy_image(oldpath,newpath):
         filename,ext = os.path.splitext(bestfile)
         source = os.path.join(oldpath,bestfile)
         target = os.path.join(newpath,'cover'+ext.lower())
-        shutil.copyfile(source,target)
+        try:
+            shutil.copyfile(source,target)
+        except:
+            pass
         return target
 
     return None
@@ -434,7 +436,8 @@ def parsetagsfrompath(filepath):
     dirtags  = parsetagsfromdirpath(filepath)
     filetags = parsetagsfromfilename(filepath) 
 
-    if not filetags.has_key('artist') and dirtags.has_key('albumartist'):
+    if (not filetags.has_key('artist') and
+        dirtags.has_key('albumartist')):
         filetags['artist'] = dirtags['albumartist']
 
     tags = dirtags;
@@ -457,7 +460,7 @@ def totaltracks(filepath):
     count = 0
     for file in files:
         filename,ext = os.path.splitext(file)
-        if ext in ALLOWEDEXTS:
+        if ext.lower() in ALLOWEDEXTS:
             count += 1
             match = regex_match("^(\d+)=.*$",file)
             if match:
@@ -510,7 +513,7 @@ def guess_tracknumber_totaltracks(tags,filepath):
     filename,ext = os.path.splitext(filename)
 
     if (not tags.has_key('tracknumber') or
-        int(tags['tracknumber'][0]) == 0 or
+        int(tags['tracknumber'][0].split('/')[0]) == 0 or
         not tags['tracknumber'][0]) :
         tracknumber = guess_tracknumber(filename)
         if tracknumber:
@@ -523,21 +526,21 @@ def guess_tracknumber_totaltracks(tags,filepath):
             if not tags.has_key('totaltracks'):
                 tags['totaltracks'] = [unicode(split[1])]
             else:
-                totaltracks = totaltracks(filepath)
-                tags['totaltracks'] = [unicode(totaltracks)]
+                total = totaltracks(filepath)
+                tags['totaltracks'] = [unicode(total)]
 
     if (tags.has_key('tracknumber') and not
         tags['tracknumber'][0].isdigit()):
         files = os.listdir(dirname)
         files.sort()
-        totaltracks = 0
+        total       = 0
         tracknumber = 0
         for file in files:
             tmpfilename,tmpext = os.path.splitext(file)
             if tmpext == ext:
-                totaltracks += 1
+                total += 1
                 if tmpfilename == filename:
-                    tracknumber = totaltracks
+                    tracknumber = total
         tags['tracknumber'] = [unicode(tracknumber)]
         tags['totaltracks'] = [unicode(totaltracks)]
             
@@ -576,11 +579,11 @@ def guess_albumartist_artist_album(tags,filepath):
     if (not tags.has_key('artist') or
         not tags.has_key('album')):
         dirname = os.path.dirname(filepath)
-        ext = os.path.splitext(filepath)[1]        
+        ext = os.path.splitext(filepath)[1].lower()
         files = os.listdir(dirname)
         files = [os.path.splitext(file)[0]
                  for file in files
-                 if os.path.splitext(file)[1] == ext]
+                 if os.path.splitext(file)[1].lower() == ext]
         lcs = LongestCommonSubstring(files)
         if not lcs:
             lcs = os.path.basename(dirname)
@@ -591,7 +594,8 @@ def guess_albumartist_artist_album(tags,filepath):
         if not tags.has_key('album') and split:
             tags['album'] = [split.pop(0)]
 
-    if not tags.has_key('albumartist'):
+    if (tags.has_key('artist') and
+        not tags.has_key('albumartist')):
         tags['albumartist'] = tags['artist']
 
 def guess_title(tags,filepath):
@@ -679,7 +683,7 @@ def scrapetagsfrom(files):
     tags = {}
     for filepath in files:
         filename,ext = os.path.splitext(filepath)
-        if not ext in ALLOWEDEXTS:
+        if not ext.lower() in ALLOWEDEXTS:
             continue
         try:
             audio = mutagen.File(filepath)
@@ -688,7 +692,7 @@ def scrapetagsfrom(files):
             for tag in IMPORTANTTAGS:
                 if (not tags.has_key(tag) and
                     audio.has_key(tag)    and
-                    audio[tag][0]):
+                    audio[tag][0].strip()):
                     tags[tag] = audio[tag]
         except:
             pass
@@ -846,6 +850,10 @@ def altertags(alters,tags):
                         split = op.split(op[1])
                         if len(split) == 3:
                             tagvalue = tagvalue.replace(split[1],split[2])
+                    elif op[0] == 'a' and op[1] == ':':
+                        tagvalue = tagvalue + op[2:]
+                    elif op[0] == 'p' and op[1] == ':':
+                        tagvalue = op[2:] + tagvalue
                 newtags[key].append(tagvalue)
     return newtags
 
@@ -913,6 +921,8 @@ def usage():
     print "  l = lowercase"
     print "  u = uppercase"
     print "  s = swapcase"
+    print "  a:<str> = append str to value"
+    print "  p:<str> = prepend str to value"
     print "  r<sep>oldvalue<sep>newvalue = replace 'oldvalue' with 'newvalue'"
     print "  <sep> is arbitrary, the char after 'r' is the token to split"
     print
